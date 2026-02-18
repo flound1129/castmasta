@@ -1,1 +1,17 @@
 .aider*
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+.ruff_cache/
+
+# Credentials and secrets
+credentials.json
+*.credentials
+.env
+.env.*
+
+# Virtual environments
+.venv/
+venv/

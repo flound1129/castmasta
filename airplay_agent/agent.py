@@ -1,9 +1,13 @@
 import asyncio
 import ipaddress
 import json
+import logging
+import math
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 import pyatv
 from pyatv import conf, connect
@@ -12,6 +16,16 @@ from pyatv.interface import AppleTV as AppleTVInterface
 
 from .config import AgentConfig
 from .tools import get_tool_definitions
+
+logger = logging.getLogger(__name__)
+
+ALLOWED_MEDIA_EXTENSIONS = {
+    ".mp3", ".wav", ".flac", ".ogg", ".mp4", ".m4a", ".aac", ".m4v", ".mov",
+}
+
+ALLOWED_URL_SCHEMES = {"http", "https"}
+
+MAX_SCAN_TIMEOUT = 30
 
 
 class CredentialStore:
@@ -22,7 +36,8 @@ class CredentialStore:
             self.storage_path = Path(storage_path)
         else:
             self.storage_path = Path.home() / ".airplay-agent" / "credentials.json"
-        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(self.storage_path.parent, 0o700)
         self._credentials: dict = self._load()
 
     def _load(self) -> dict:
@@ -35,8 +50,21 @@ class CredentialStore:
         return {}
 
     def _save(self):
-        with open(self.storage_path, "w") as f:
-            json.dump(self._credentials, f, indent=2)
+        dir_ = self.storage_path.parent
+        fd = None
+        tmp_path = None
+        try:
+            fd = tempfile.mkstemp(dir=dir_, suffix=".tmp")
+            tmp_path = fd[1]
+            with os.fdopen(fd[0], "w") as f:
+                json.dump(self._credentials, f, indent=2)
+            os.chmod(tmp_path, 0o600)
+            os.replace(tmp_path, self.storage_path)
+        except OSError:
+            logger.exception("Failed to save credentials")
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
 
     def get(self, identifier: str, protocol: str) -> Optional[str]:
         """Get credentials for a device and protocol."""
@@ -55,7 +83,6 @@ class CredentialStore:
             key = f"{identifier}:{protocol}"
             self._credentials.pop(key, None)
         else:
-            # Delete all credentials for this identifier
             keys_to_delete = [
                 k for k in self._credentials if k.startswith(f"{identifier}:")
             ]
@@ -70,11 +97,12 @@ class AirPlayAgent:
         self.devices: dict[str, AppleTVInterface] = {}
         self._scan_task: Optional[asyncio.Task] = None
         self.credentials = CredentialStore(self.config.storage_path)
+        self._pairing_handlers: dict[str, object] = {}
 
     async def scan(self, timeout: int = 5) -> list[dict]:
         """Scan for AirPlay devices on the network."""
-        loop = asyncio.get_event_loop()
-        atvs = await pyatv.scan(loop, timeout=timeout, protocol=None)
+        timeout = max(1, min(timeout, MAX_SCAN_TIMEOUT))
+        atvs = await pyatv.scan(timeout=timeout)
         device_list = []
         for atv in atvs:
             services = atv.services if hasattr(atv, "services") else []
@@ -98,8 +126,8 @@ class AirPlayAgent:
         """Pair with a device using PIN code.
 
         Returns a dict with pairing status and instructions.
+        The handler is stored internally for use by pair_with_pin.
         """
-        loop = asyncio.get_event_loop()
         device_config = conf.AppleTV(
             address=ipaddress.IPv4Address(address),
             name=name,
@@ -113,19 +141,22 @@ class AirPlayAgent:
             raise ValueError(f"Unsupported protocol for pairing: {protocol}")
 
         device_config.add_service(service)
-        handler = await pyatv.pair(device_config, protocol, loop)
+        handler = await pyatv.pair(device_config, protocol)
+
+        await handler.begin()
+
+        handler_key = f"{identifier}:{protocol.name}"
+        self._pairing_handlers[handler_key] = handler
 
         if not handler.device_provides_pin:
             return {
                 "status": "pin_required",
                 "message": "Enter PIN on the device itself",
-                "handler": handler,
             }
 
         return {
             "status": "ready",
             "message": "PIN required - use pair_with_pin method",
-            "handler": handler,
         }
 
     async def pair_with_pin(
@@ -137,36 +168,27 @@ class AirPlayAgent:
         protocol: Protocol = Protocol.AirPlay,
     ) -> bool:
         """Complete pairing with a PIN code."""
-        loop = asyncio.get_event_loop()
-        device_config = conf.AppleTV(
-            address=ipaddress.IPv4Address(address),
-            name=name,
-        )
+        handler_key = f"{identifier}:{protocol.name}"
+        handler = self._pairing_handlers.get(handler_key)
 
-        if protocol == Protocol.AirPlay:
-            service = conf.AirPlayService(identifier, port=7000)
-        elif protocol == Protocol.Companion:
-            service = conf.CompanionService(port=49153)
-        else:
-            raise ValueError(f"Unsupported protocol: {protocol}")
+        if handler is None:
+            raise ValueError(
+                f"No active pairing session for {identifier}. Call pair() first."
+            )
 
-        device_config.add_service(service)
-        handler = await pyatv.pair(device_config, protocol, loop)
+        try:
+            handler.pin(pin)
+            await handler.finish()
 
-        handler.pin(pin)
-        await handler.begin()
-        await handler.finish()
-
-        if handler.has_paired:
-            # Save credentials
-            service = handler.service
-            if service.credentials:
-                self.credentials.set(identifier, protocol.name, service.credentials)
+            if handler.has_paired:
+                service = handler.service
+                if service.credentials:
+                    self.credentials.set(identifier, protocol.name, service.credentials)
+                return True
+            return False
+        finally:
             await handler.close()
-            return True
-
-        await handler.close()
-        return False
+            self._pairing_handlers.pop(handler_key, None)
 
     async def connect(
         self,
@@ -176,7 +198,6 @@ class AirPlayAgent:
         protocol: Protocol = Protocol.AirPlay,
     ) -> AppleTVInterface:
         """Connect to a specific AirPlay device."""
-        loop = asyncio.get_event_loop()
         device_config = conf.AppleTV(
             address=ipaddress.IPv4Address(address),
             name=name,
@@ -184,7 +205,6 @@ class AirPlayAgent:
 
         if protocol == Protocol.AirPlay:
             service = conf.AirPlayService(identifier, port=7000)
-            # Try to load cached credentials
             creds = self.credentials.get(identifier, "AirPlay")
             if creds:
                 service.credentials = creds
@@ -198,7 +218,7 @@ class AirPlayAgent:
 
         device_config.add_service(service)
 
-        atv = await connect(device_config, loop=loop)
+        atv = await connect(device_config)
         self.devices[identifier] = atv
         return atv
 
@@ -235,10 +255,10 @@ class AirPlayAgent:
         atv = self._get_device(identifier)
         await atv.power.turn_off()
 
-    async def get_power_state(self, identifier: str) -> bool:
+    async def get_power_state(self, identifier: str):
         """Get power state of a device."""
         atv = self._get_device(identifier)
-        return await atv.power.power_state
+        return atv.power.power_state
 
     async def play(self, identifier: str):
         """Play/Resume playback."""
@@ -256,36 +276,61 @@ class AirPlayAgent:
         await atv.remote_control.stop()
 
     async def play_url(self, identifier: str, url: str, **kwargs):
-        """Play a URL (video or audio)."""
+        """Play a URL (video or audio). Only http/https URLs are allowed."""
+        parsed = urlparse(url)
+        if parsed.scheme not in ALLOWED_URL_SCHEMES:
+            raise ValueError(
+                f"URL scheme '{parsed.scheme}' not allowed. Use http or https."
+            )
+        if not parsed.hostname:
+            raise ValueError("URL must include a hostname.")
         atv = self._get_device(identifier)
         await atv.stream.play_url(url, **kwargs)
 
     async def stream_file(self, identifier: str, file_path: str):
-        """Stream a local file to the device."""
+        """Stream a local media file to the device."""
+        path = Path(file_path).resolve()
+        if path.is_symlink():
+            real = Path(os.path.realpath(path))
+            if real != path:
+                raise ValueError("Symlinks are not allowed for streaming.")
+        if not path.is_file():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        if path.suffix.lower() not in ALLOWED_MEDIA_EXTENSIONS:
+            raise ValueError(
+                f"Unsupported file type '{path.suffix}'. "
+                f"Allowed: {', '.join(sorted(ALLOWED_MEDIA_EXTENSIONS))}"
+            )
         atv = self._get_device(identifier)
-        await atv.stream.stream_file(file_path)
+        await atv.stream.stream_file(str(path))
 
     async def set_volume(self, identifier: str, volume: float):
         """Set volume (0.0 to 1.0)."""
+        if not isinstance(volume, (int, float)) or math.isnan(volume) or math.isinf(volume):
+            raise ValueError("Volume must be a finite number.")
+        if not (0.0 <= volume <= 1.0):
+            raise ValueError(f"Volume must be between 0.0 and 1.0, got {volume}")
         atv = self._get_device(identifier)
         await atv.audio.set_volume(volume)
 
     async def volume_up(self, identifier: str, delta: float = 0.1):
         """Increase volume by delta."""
+        self._validate_delta(delta)
         atv = self._get_device(identifier)
-        current = await atv.audio.volume
+        current = atv.audio.volume
         await atv.audio.set_volume(min(1.0, current + delta))
 
     async def volume_down(self, identifier: str, delta: float = 0.1):
         """Decrease volume by delta."""
+        self._validate_delta(delta)
         atv = self._get_device(identifier)
-        current = await atv.audio.volume
+        current = atv.audio.volume
         await atv.audio.set_volume(max(0.0, current - delta))
 
     async def get_volume(self, identifier: str) -> float:
         """Get current volume."""
         atv = self._get_device(identifier)
-        return await atv.audio.volume
+        return atv.audio.volume
 
     async def now_playing(self, identifier: str) -> dict:
         """Get now playing information."""
@@ -333,6 +378,13 @@ class AirPlayAgent:
         if identifier not in self.devices:
             raise ValueError(f"Device '{identifier}' not connected")
         return self.devices[identifier]
+
+    @staticmethod
+    def _validate_delta(delta: float):
+        if not isinstance(delta, (int, float)) or math.isnan(delta) or math.isinf(delta):
+            raise ValueError("Delta must be a finite number.")
+        if not (0.0 < delta <= 1.0):
+            raise ValueError(f"Delta must be between 0.0 and 1.0, got {delta}")
 
     def get_tool_definitions(self) -> list[dict]:
         """Get LLM tool definitions for this agent."""

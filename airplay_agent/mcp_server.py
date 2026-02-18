@@ -1,5 +1,5 @@
 """MCP server for AirPlay agent."""
-import asyncio
+import logging
 from typing import Optional
 
 from fastmcp import FastMCP
@@ -7,29 +7,32 @@ from fastmcp import FastMCP
 from airplay_agent import AirPlayAgent
 from pyatv.const import Protocol
 
+logger = logging.getLogger(__name__)
+
 mcp = FastMCP("AirPlay Agent")
 
-agent: Optional[AirPlayAgent] = None
+agent: AirPlayAgent = AirPlayAgent()
 
 
-def get_agent() -> AirPlayAgent:
-    global agent
-    if agent is None:
-        agent = AirPlayAgent()
-    return agent
+def _parse_protocol(protocol: str) -> Optional[Protocol]:
+    """Parse and validate protocol string. Returns None if invalid."""
+    if protocol == "airplay":
+        return Protocol.AirPlay
+    elif protocol == "companion":
+        return Protocol.Companion
+    return None
 
 
 @mcp.tool()
 async def scan_devices(timeout: int = 5) -> str:
     """Scan the local network for AirPlay devices.
-    
+
     Returns a list of all discovered devices with their names, addresses, and supported protocols.
     """
-    a = get_agent()
-    devices = await a.scan(timeout)
+    devices = await agent.scan(timeout)
     if not devices:
         return "No devices found on the network."
-    
+
     result = ["Found devices:\n"]
     for dev in devices:
         result.append(f"- {dev['name']} ({dev['address']})")
@@ -41,234 +44,246 @@ async def scan_devices(timeout: int = 5) -> str:
 @mcp.tool()
 async def connect_device(name: str, protocol: str = "airplay") -> str:
     """Connect to an AirPlay device by name.
-    
+
     Args:
         name: The name of the device to connect to (e.g., 'Main Bedroom')
         protocol: The protocol to use - 'airplay' or 'companion' (default: airplay)
     """
-    a = get_agent()
-    proto = Protocol.AirPlay if protocol == "airplay" else Protocol.Companion
+    proto = _parse_protocol(protocol)
+    if proto is None:
+        return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        atv = await a.connect_by_name(name, proto)
-        return f"Connected to {name}"
+        atv = await agent.connect_by_name(name, proto)
+        identifier = atv.device_info.identifier if hasattr(atv.device_info, 'identifier') else "unknown"
+        return f"Connected to {name} (identifier: {identifier})"
     except Exception as e:
-        return f"Failed to connect to {name}: {str(e)}"
+        logger.exception("Failed to connect to device")
+        return f"Failed to connect to {name}: device unreachable or pairing required"
 
 
 @mcp.tool()
 async def disconnect_device(identifier: str) -> str:
     """Disconnect from an AirPlay device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.disconnect(identifier)
+        await agent.disconnect(identifier)
         return f"Disconnected from {identifier}"
     except Exception as e:
-        return f"Failed to disconnect: {str(e)}"
+        logger.exception("Failed to disconnect")
+        return f"Failed to disconnect from {identifier}"
 
 
 @mcp.tool()
 async def power_on(identifier: str) -> str:
     """Turn on an AirPlay device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.power_on(identifier)
+        await agent.power_on(identifier)
         return f"Powered on {identifier}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to power on device")
+        return f"Failed to power on {identifier}"
 
 
 @mcp.tool()
 async def power_off(identifier: str) -> str:
     """Turn off an AirPlay device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.power_off(identifier)
+        await agent.power_off(identifier)
         return f"Powered off {identifier}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to power off device")
+        return f"Failed to power off {identifier}"
 
 
 @mcp.tool()
 async def get_power_state(identifier: str) -> str:
     """Get the power state of a device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        state = await a.get_power_state(identifier)
+        state = await agent.get_power_state(identifier)
         return f"Power state: {'on' if state else 'off'}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to get power state")
+        return f"Failed to get power state for {identifier}"
 
 
 @mcp.tool()
 async def play(identifier: str) -> str:
     """Start or resume playback on a device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.play(identifier)
+        await agent.play(identifier)
         return "Playing"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to play")
+        return "Failed to start playback"
 
 
 @mcp.tool()
 async def pause(identifier: str) -> str:
     """Pause playback on a device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.pause(identifier)
+        await agent.pause(identifier)
         return "Paused"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to pause")
+        return "Failed to pause playback"
 
 
 @mcp.tool()
 async def stop(identifier: str) -> str:
     """Stop playback on a device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        await a.stop(identifier)
+        await agent.stop(identifier)
         return "Stopped"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to stop")
+        return "Failed to stop playback"
 
 
 @mcp.tool()
 async def play_url(identifier: str, url: str, position: float = 0) -> str:
     """Play a video or audio URL on a device.
-    
+
     Args:
         identifier: The device identifier
-        url: The URL to play (can be HTTP/HTTPS)
+        url: The URL to play (must be HTTP or HTTPS)
         position: Optional starting position in seconds
     """
-    a = get_agent()
     try:
         kwargs = {}
         if position > 0:
             kwargs["position"] = position
-        await a.play_url(identifier, url, **kwargs)
-        return f"Playing {url}"
+        await agent.play_url(identifier, url, **kwargs)
+        return f"Playing URL on {identifier}"
+    except ValueError as e:
+        return f"Invalid URL: {e}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to play URL")
+        return f"Failed to play URL on {identifier}"
 
 
 @mcp.tool()
 async def stream_file(identifier: str, file_path: str) -> str:
     """Stream a local audio/video file to a device.
-    
+
     Args:
         identifier: The device identifier
-        file_path: Path to local file (MP3, WAV, FLAC, OGG, MP4)
+        file_path: Path to local media file (MP3, WAV, FLAC, OGG, MP4, M4A, AAC)
     """
-    a = get_agent()
     try:
-        await a.stream_file(identifier, file_path)
-        return f"Streaming {file_path}"
+        await agent.stream_file(identifier, file_path)
+        return f"Streaming file on {identifier}"
+    except (ValueError, FileNotFoundError) as e:
+        return f"Invalid file: {e}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to stream file")
+        return f"Failed to stream file on {identifier}"
 
 
 @mcp.tool()
 async def set_volume(identifier: str, volume: float) -> str:
     """Set the volume on a device.
-    
+
     Args:
         identifier: The device identifier
         volume: Volume level from 0.0 (mute) to 1.0 (max)
     """
-    a = get_agent()
     try:
-        await a.set_volume(identifier, volume)
+        await agent.set_volume(identifier, volume)
         return f"Volume set to {volume}"
+    except ValueError as e:
+        return str(e)
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to set volume")
+        return f"Failed to set volume on {identifier}"
 
 
 @mcp.tool()
 async def volume_up(identifier: str, delta: float = 0.1) -> str:
     """Increase the volume on a device.
-    
+
     Args:
         identifier: The device identifier
-        delta: Amount to increase (default: 0.1)
+        delta: Amount to increase (0.0 to 1.0, default: 0.1)
     """
-    a = get_agent()
     try:
-        await a.volume_up(identifier, delta)
+        await agent.volume_up(identifier, delta)
         return f"Volume up by {delta}"
+    except ValueError as e:
+        return str(e)
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to increase volume")
+        return f"Failed to increase volume on {identifier}"
 
 
 @mcp.tool()
 async def volume_down(identifier: str, delta: float = 0.1) -> str:
     """Decrease the volume on a device.
-    
+
     Args:
         identifier: The device identifier
-        delta: Amount to decrease (default: 0.1)
+        delta: Amount to decrease (0.0 to 1.0, default: 0.1)
     """
-    a = get_agent()
     try:
-        await a.volume_down(identifier, delta)
+        await agent.volume_down(identifier, delta)
         return f"Volume down by {delta}"
+    except ValueError as e:
+        return str(e)
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to decrease volume")
+        return f"Failed to decrease volume on {identifier}"
 
 
 @mcp.tool()
 async def get_volume(identifier: str) -> str:
     """Get the current volume level of a device.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        volume = await a.get_volume(identifier)
+        volume = await agent.get_volume(identifier)
         return f"Volume: {volume}"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to get volume")
+        return f"Failed to get volume for {identifier}"
 
 
 @mcp.tool()
 async def now_playing(identifier: str) -> str:
     """Get information about currently playing media.
-    
+
     Args:
         identifier: The device identifier
     """
-    a = get_agent()
     try:
-        info = await a.now_playing(identifier)
+        info = await agent.now_playing(identifier)
         return (
             f"Title: {info.get('title', 'Unknown')}\n"
             f"Artist: {info.get('artist', 'Unknown')}\n"
@@ -277,89 +292,98 @@ async def now_playing(identifier: str) -> str:
             f"Position: {info.get('position', 0)}s / {info.get('total_time', 0)}s"
         )
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to get now playing info")
+        return f"Failed to get now playing info for {identifier}"
 
 
 @mcp.tool()
 async def seek(identifier: str, position: float) -> str:
     """Seek to a specific position in the current media.
-    
+
     Args:
         identifier: The device identifier
         position: Position in seconds
     """
-    a = get_agent()
     try:
-        await a.seek(identifier, position)
+        await agent.seek(identifier, position)
         return f"Seeked to {position}s"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to seek")
+        return f"Failed to seek on {identifier}"
 
 
 @mcp.tool()
 async def send_key(identifier: str, key: str) -> str:
     """Send a remote control key press.
-    
+
     Args:
         identifier: The device identifier
         key: Key name - up, down, left, right, select, menu, home, play, pause, play_pause, next, previous
     """
-    a = get_agent()
     try:
-        await a.send_key(identifier, key)
+        await agent.send_key(identifier, key)
         return f"Sent key: {key}"
+    except ValueError as e:
+        return str(e)
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to send key")
+        return f"Failed to send key on {identifier}"
 
 
 @mcp.tool()
 async def pair_device(name: str, protocol: str = "airplay") -> str:
     """Start pairing with a device (for devices that require PIN).
-    
+
     Args:
         name: The name of the device to pair with
         protocol: The protocol - 'airplay' or 'companion'
     """
-    a = get_agent()
+    proto = _parse_protocol(protocol)
+    if proto is None:
+        return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        devices = await a.scan()
+        devices = await agent.scan()
         for dev in devices:
             if dev["name"] == name:
-                proto = Protocol.AirPlay if protocol == "airplay" else Protocol.Companion
-                result = await a.pair(dev["identifier"], dev["address"], dev["name"], proto)
-                return f"Pairing initiated for {name}. Use pair_device_with_pin to complete."
+                result = await agent.pair(dev["identifier"], dev["address"], dev["name"], proto)
+                return f"Pairing initiated for {name}. Status: {result['status']}. Use pair_device_with_pin to complete."
         return f"Device '{name}' not found"
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to start pairing")
+        return f"Failed to pair with {name}"
 
 
 @mcp.tool()
 async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay") -> str:
     """Complete pairing with a PIN code.
-    
+
     Args:
         name: The name of the device to pair with
         pin: The PIN code (4 digits)
         protocol: The protocol - 'airplay' or 'companion'
     """
-    a = get_agent()
+    proto = _parse_protocol(protocol)
+    if proto is None:
+        return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        devices = await a.scan()
+        devices = await agent.scan()
         for dev in devices:
             if dev["name"] == name:
-                proto = Protocol.AirPlay if protocol == "airplay" else Protocol.Companion
-                success = await a.pair_with_pin(dev["identifier"], dev["address"], dev["name"], pin, proto)
+                success = await agent.pair_with_pin(dev["identifier"], dev["address"], dev["name"], pin, proto)
                 if success:
                     return "Pairing successful! Credentials cached."
                 return "Pairing failed. Please try again."
         return f"Device '{name}' not found"
+    except ValueError as e:
+        return str(e)
     except Exception as e:
-        return f"Failed: {str(e)}"
+        logger.exception("Failed to complete pairing")
+        return f"Failed to complete pairing with {name}"
+
+
+def main():
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "run":
-        mcp.run()
-    else:
-        mcp.run(transport="stdio")
+    main()

@@ -2,17 +2,11 @@
 
 import asyncio
 import json
-import sys
-from typing import Optional
 
 import click
 
 from airplay_agent import AirPlayAgent
 from pyatv.const import Protocol
-
-
-async def run_async(coro):
-    return await coro
 
 
 @click.group()
@@ -102,7 +96,7 @@ def pair(ctx, name, protocol):
 
 @cli.command()
 @click.argument("name")
-@click.argument("pin")
+@click.option("--pin", prompt="Enter PIN", hide_input=False, help="Pairing PIN code")
 @click.option(
     "--protocol", "-p", type=click.Choice(["airplay", "companion"]), default="airplay"
 )

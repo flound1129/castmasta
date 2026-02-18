@@ -5,10 +5,26 @@ After=network.target
 [Service]
 Type=simple
 Environment="PATH=/home/ollama/venv/bin:/usr/local/bin:/usr/bin:/bin"
-Environment="PYTHONPATH=/home/ollama/venv/lib/python3.11/site-packages"
 ExecStart=/home/ollama/venv/bin/python -m airplay_agent.mcp_server
 Restart=on-failure
 RestartSec=10
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=%h/.airplay-agent
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallFilter=@system-service
 
 [Install]
 WantedBy=default.target
