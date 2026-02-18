@@ -123,6 +123,73 @@ The project includes `opencode.json` configured for Ollama at `localhost:11434`:
 opencode
 ```
 
+## MCP Server
+
+The AirPlay agent can be run as an MCP (Model Context Protocol) server, making it compatible with Claude Desktop, Cursor, and other MCP clients.
+
+### Installation
+
+```bash
+pip install -e ".[mcp]"
+# or just:
+pip install fastmcp
+```
+
+### Running the MCP Server
+
+```bash
+# Run with stdio transport (for Claude Desktop)
+python -m airplay_agent.mcp_server
+
+# Or use the CLI entry point (after pip install)
+airplay-mcp
+```
+
+### Claude Desktop Configuration
+
+Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+
+```json
+{
+  "mcpServers": {
+    "airplay-agent": {
+      "command": "python",
+      "args": ["-m", "airplay_agent.mcp_server"],
+      "env": {
+        "PATH": "/path/to/your/venv/bin"
+      }
+    }
+  }
+}
+```
+
+Or if installed globally:
+
+```json
+{
+  "mcpServers": {
+    "airplay-agent": {
+      "command": "airplay-mcp"
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+The MCP server exposes these tools:
+- `scan_devices` - Scan for AirPlay devices
+- `connect_device` - Connect to a device by name
+- `disconnect_device` - Disconnect from a device
+- `power_on` / `power_off` / `get_power_state` - Power control
+- `play` / `pause` / `stop` / `seek` - Playback control
+- `play_url` - Play a URL
+- `stream_file` - Stream a local file
+- `set_volume` / `volume_up` / `volume_down` / `get_volume` - Volume control
+- `now_playing` - Get current media info
+- `send_key` - Send remote control key
+- `pair_device` / `pair_device_with_pin` - Device pairing
+
 ## Python API
 
 ```python
