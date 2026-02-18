@@ -8,6 +8,45 @@ LLM agent for controlling AirPlay devices (Apple TV, HomePod, AirPlay speakers, 
 pip install -e .
 ```
 
+## Running as a System Service
+
+### System-wide (requires root)
+
+```bash
+sudo cp systemd/airplay-agent.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable airplay-agent
+sudo systemctl start airplay-agent
+```
+
+### Per-user (no root required)
+
+```bash
+mkdir -p ~/.config/systemd/user
+cp systemd/airplay-agent@.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable airplay-agent
+systemctl --user start airplay-agent
+```
+
+Check status:
+```bash
+# System-wide
+sudo systemctl status airplay-agent
+
+# Per-user
+systemctl --user status airplay-agent
+```
+
+View logs:
+```bash
+# System-wide
+sudo journalctl -u airplay-agent -f
+
+# Per-user
+journalctl --user -u airplay-agent -f
+```
+
 ## CLI Usage
 
 ### Scan for devices
