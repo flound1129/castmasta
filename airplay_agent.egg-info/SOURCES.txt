@@ -1,0 +1,11 @@
+pyproject.toml
+airplay_agent/__init__.py
+airplay_agent/agent.py
+airplay_agent/cli.py
+airplay_agent/config.py
+airplay_agent/tools.py
+airplay_agent.egg-info/PKG-INFO
+airplay_agent.egg-info/SOURCES.txt
+airplay_agent.egg-info/dependency_links.txt
+airplay_agent.egg-info/requires.txt
+airplay_agent.egg-info/top_level.txt
