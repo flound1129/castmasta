@@ -66,3 +66,10 @@ class DeviceBackend(ABC):
     @abstractmethod
     async def get_power_state(self) -> bool:
         """Get power state. True = on, False = off."""
+
+    async def send_key(self, key: str) -> None:
+        """Send a remote control key press.
+
+        AirPlay backends override this. Raises ValueError on unsupported backends.
+        """
+        raise ValueError(f"send_key is not supported on {self.device_type} devices.")

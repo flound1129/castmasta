@@ -39,7 +39,7 @@ class GoogleCastBackend(DeviceBackend):
                 return
 
         if browser:
-            browser.stop_discovery()
+            await asyncio.to_thread(browser.stop_discovery)
         raise ValueError(f"Google Cast device '{name}' not found")
 
     async def disconnect(self) -> None:
@@ -48,7 +48,7 @@ class GoogleCastBackend(DeviceBackend):
             await asyncio.to_thread(self._cast.disconnect)
             self._cast = None
         if self._browser:
-            self._browser.stop_discovery()
+            await asyncio.to_thread(self._browser.stop_discovery)
             self._browser = None
 
     async def stream_file(self, file_path: str) -> None:
@@ -81,11 +81,10 @@ class GoogleCastBackend(DeviceBackend):
         await asyncio.to_thread(self._cast.set_volume, volume)
 
     async def get_volume(self) -> float:
-        return self._cast.status.volume_level
+        return await asyncio.to_thread(lambda: self._cast.status.volume_level)
 
     async def now_playing(self) -> dict:
-        mc = self._cast.media_controller
-        status = mc.status
+        status = await asyncio.to_thread(lambda: self._cast.media_controller.status)
         return {
             "media_type": getattr(status, "media_type", "Unknown"),
             "device_state": getattr(status, "player_state", "Unknown"),
@@ -103,4 +102,6 @@ class GoogleCastBackend(DeviceBackend):
         await asyncio.to_thread(self._cast.quit_app)
 
     async def get_power_state(self) -> bool:
-        return self._cast is not None and self._cast.status is not None
+        return await asyncio.to_thread(
+            lambda: self._cast is not None and self._cast.status is not None
+        )

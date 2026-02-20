@@ -253,6 +253,39 @@ TOOLS = [
             "required": ["identifier", "key"],
         },
     },
+    {
+        "name": "pair_device",
+        "description": "Start pairing with an AirPlay device (AirPlay only)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Device name"},
+                "protocol": {
+                    "type": "string",
+                    "description": "Protocol: 'airplay' or 'companion' (default: airplay)",
+                    "default": "airplay",
+                },
+            },
+            "required": ["name"],
+        },
+    },
+    {
+        "name": "pair_device_with_pin",
+        "description": "Complete pairing with a PIN code (AirPlay only)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Device name"},
+                "pin": {"type": "string", "description": "4-digit PIN code"},
+                "protocol": {
+                    "type": "string",
+                    "description": "Protocol: 'airplay' or 'companion' (default: airplay)",
+                    "default": "airplay",
+                },
+            },
+            "required": ["name", "pin"],
+        },
+    },
 ]
 
 

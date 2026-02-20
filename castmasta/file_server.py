@@ -1,5 +1,7 @@
 """HTTP file server for streaming local files to Google Cast devices."""
 
+import asyncio
+import functools
 import logging
 import mimetypes
 import os
@@ -34,6 +36,8 @@ class FileServer:
 
     async def serve_file(self, file_path: str) -> str:
         """Start serving a file. Returns the URL to access it."""
+        if self._runner is not None:
+            await self.shutdown()
         self._file_path = file_path
         self._file_name = Path(file_path).name
 
@@ -68,8 +72,12 @@ class FileServer:
         )
         await response.prepare(request)
 
+        loop = asyncio.get_running_loop()
         with open(self._file_path, "rb") as f:
-            while chunk := f.read(65536):
+            while True:
+                chunk = await loop.run_in_executor(None, functools.partial(f.read, 65536))
+                if not chunk:
+                    break
                 await response.write(chunk)
 
         return response

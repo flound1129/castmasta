@@ -78,7 +78,7 @@ class CastAgent:
             chromecasts, browser = await asyncio.to_thread(
                 pychromecast.get_chromecasts, timeout=timeout,
             )
-            browser.stop_discovery()
+            await asyncio.to_thread(browser.stop_discovery)
             results = []
             for cc in chromecasts:
                 results.append({
@@ -305,11 +305,10 @@ class CastAgent:
     # --- Validation helpers ---
 
     def _validate_media_file(self, file_path: str) -> Path:
-        path = Path(file_path).resolve()
-        if path.is_symlink():
-            real = Path(os.path.realpath(path))
-            if real != path:
-                raise ValueError("Symlinks are not allowed for streaming.")
+        unresolved = Path(file_path)
+        if unresolved.is_symlink():
+            raise ValueError("Symlinks are not allowed for streaming.")
+        path = unresolved.resolve()
         if not path.is_file():
             raise FileNotFoundError(f"File not found: {file_path}")
         if path.suffix.lower() not in ALLOWED_MEDIA_EXTENSIONS:
@@ -320,11 +319,10 @@ class CastAgent:
         return path
 
     def _validate_image_file(self, image_path: str) -> Path:
-        path = Path(image_path).resolve()
-        if path.is_symlink():
-            real = Path(os.path.realpath(path))
-            if real != path:
-                raise ValueError("Symlinks are not allowed for image display.")
+        unresolved = Path(image_path)
+        if unresolved.is_symlink():
+            raise ValueError("Symlinks are not allowed for image display.")
+        path = unresolved.resolve()
         if not path.is_file():
             raise FileNotFoundError(f"Image file not found: {image_path}")
         if path.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS:
@@ -336,14 +334,14 @@ class CastAgent:
 
     @staticmethod
     def _validate_volume(volume: float):
-        if not isinstance(volume, (int, float)) or math.isnan(volume) or math.isinf(volume):
+        if isinstance(volume, bool) or not isinstance(volume, (int, float)) or math.isnan(volume) or math.isinf(volume):
             raise ValueError("Volume must be a finite number.")
         if not (0.0 <= volume <= 1.0):
             raise ValueError(f"Volume must be between 0.0 and 1.0, got {volume}")
 
     @staticmethod
     def _validate_delta(delta: float):
-        if not isinstance(delta, (int, float)) or math.isnan(delta) or math.isinf(delta):
+        if isinstance(delta, bool) or not isinstance(delta, (int, float)) or math.isnan(delta) or math.isinf(delta):
             raise ValueError("Delta must be a finite number.")
         if not (0.0 < delta <= 1.0):
             raise ValueError(f"Delta must be between 0.0 and 1.0, got {delta}")
