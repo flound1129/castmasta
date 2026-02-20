@@ -57,7 +57,7 @@ class CastAgent:
 
     async def _scan_airplay(self, timeout: int) -> list[dict]:
         try:
-            atvs = await pyatv.scan(timeout=timeout)
+            atvs = await pyatv.scan(loop=asyncio.get_event_loop(), timeout=timeout)
             results = []
             for atv in atvs:
                 services = atv.services if hasattr(atv, "services") else []
@@ -82,8 +82,8 @@ class CastAgent:
             results = []
             for cc in chromecasts:
                 results.append({
-                    "name": cc.name,
-                    "address": str(cc.host),
+                    "name": cc.cast_info.friendly_name,
+                    "address": str(cc.cast_info.host),
                     "identifier": str(cc.uuid),
                     "device_type": "googlecast",
                     "protocols": ["googlecast"],
