@@ -1,6 +1,6 @@
-# AirPlay Agent
+# CastMasta
 
-LLM agent for controlling AirPlay devices (Apple TV, HomePod, AirPlay speakers, AV receivers).
+LLM agent for controlling AirPlay and Google Cast devices (Apple TV, HomePod, Chromecast, Google Home, Nest Hub, AirPlay speakers, AV receivers).
 
 ## Installation
 
@@ -13,38 +13,38 @@ pip install -e .
 ### System-wide (requires root)
 
 ```bash
-sudo cp systemd/airplay-agent.service /etc/systemd/system/
+sudo cp systemd/castmasta.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable airplay-agent
-sudo systemctl start airplay-agent
+sudo systemctl enable castmasta
+sudo systemctl start castmasta
 ```
 
 ### Per-user (no root required)
 
 ```bash
 mkdir -p ~/.config/systemd/user
-cp systemd/airplay-agent@.service ~/.config/systemd/user/
+cp systemd/castmasta@.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable airplay-agent
-systemctl --user start airplay-agent
+systemctl --user enable castmasta
+systemctl --user start castmasta
 ```
 
 Check status:
 ```bash
 # System-wide
-sudo systemctl status airplay-agent
+sudo systemctl status castmasta
 
 # Per-user
-systemctl --user status airplay-agent
+systemctl --user status castmasta
 ```
 
 View logs:
 ```bash
 # System-wide
-sudo journalctl -u airplay-agent -f
+sudo journalctl -u castmasta -f
 
 # Per-user
-journalctl --user -u airplay-agent -f
+journalctl --user -u castmasta -f
 ```
 
 ## CLI Usage
@@ -52,163 +52,154 @@ journalctl --user -u airplay-agent -f
 ### Scan for devices
 
 ```bash
-python -m airplay_agent.cli scan
-# or after pip install:
-airplay-agent scan
+castmasta scan
+```
+
+Output shows device type tags:
+```
+Found devices:
+  - Living Room TV (192.168.1.10) [airplay]
+    Identifier: XXXX-XXXX
+    Protocols: AirPlay, Companion
+  - Kitchen Speaker (192.168.1.20) [googlecast]
+    Identifier: uuid-1234
+    Protocols: googlecast
 ```
 
 ### Connect to a device
 
 ```bash
-python -m airplay_agent.cli connect "Main Bedroom"
+# Auto-detects device type (AirPlay or Google Cast)
+castmasta connect "Living Room TV"
 ```
 
-### Pairing (for devices that require PIN)
+### Pairing (AirPlay only)
 
-Some devices (like Apple TV, Roku) require pairing before certain operations:
+Some AirPlay devices require pairing before certain operations:
 
 ```bash
 # Start pairing - will show PIN on your TV
-python -m airplay_agent.cli pair "Main Bedroom"
+castmasta pair "Main Bedroom"
 
 # Complete pairing with PIN
-python -m airplay_agent.cli pair-pin "Main Bedroom" 1234
+castmasta pair-pin "Main Bedroom" 1234
 ```
 
-Credentials are cached in `~/.airplay-agent/credentials.json`.
+Credentials are cached in `~/.castmasta/credentials.json`.
 
 To remove cached credentials:
 ```bash
-python -m airplay_agent.cli remove-credentials <device_identifier>
+castmasta remove-credentials <device_identifier>
 ```
 
 ### Playback control
 
 ```bash
-python -m airplay_agent.cli play <device_id>
-python -m airplay_agent.cli pause <device_id>
-python -m airplay_agent.cli stop <device_id>
-python -m airplay_agent.cli seek <device_id> 60  # seek to 60 seconds
-python -m airplay_agent.cli send-key <device_id> up  # send remote key
+castmasta play <device_id>
+castmasta pause <device_id>
+castmasta stop <device_id>
+castmasta seek <device_id> 60  # seek to 60 seconds
+castmasta send-key <device_id> up  # AirPlay only
 ```
 
 ### Streaming
 
 ```bash
 # Play a URL (video or audio)
-python -m airplay_agent.cli play-url <device_id> "https://example.com/video.mp4"
+castmasta play-url <device_id> "https://example.com/video.mp4"
 
 # Stream a local file
-python -m airplay_agent.cli stream-file <device_id> "/path/to/file.mp3"
+castmasta stream-file <device_id> "/path/to/file.mp3"
 ```
 
 Supported file formats:
-- Audio: MP3, WAV, FLAC, OGG
-- Video: MP4 (must be AirPlay-compatible)
+- Audio: MP3, WAV, FLAC, OGG, AAC, M4A
+- Video: MP4, M4V, MOV
+
+### Display image
+
+Display a static image on a device (requires ffmpeg). The image is converted to an MP4 video and streamed.
+
+```bash
+# Display an image for 1 hour (default)
+castmasta display-image <device_id> "/path/to/image.png"
+
+# Display for a specific duration (in seconds)
+castmasta display-image <device_id> "/path/to/photo.jpg" --duration 300
+```
+
+Supported image formats: PNG, JPG, JPEG, BMP, GIF, WEBP
 
 ### Volume control
 
 ```bash
-python -m airplay_agent.cli set-volume <device_id> 0.5    # 0.0 to 1.0
-python -m airplay_agent.cli volume-up <device_id>
-python -m airplay_agent.cli volume-down <device_id>
-python -m airplay_agent.cli get-volume <device_id>
+castmasta set-volume <device_id> 0.5    # 0.0 to 1.0
+castmasta volume-up <device_id>
+castmasta volume-down <device_id>
+castmasta get-volume <device_id>
 ```
 
 ### Power control
 
 ```bash
-python -m airplay_agent.cli power-on <device_id>
-python -m airplay_agent.cli power-off <device_id>
-python -m airplay_agent.cli power-state <device_id>
+castmasta power-on <device_id>    # AirPlay only; no-op on Google Cast
+castmasta power-off <device_id>   # Quits app on Google Cast
+castmasta power-state <device_id>
 ```
 
 ### Now playing
 
 ```bash
-python -m airplay_agent.cli now-playing <device_id>
+castmasta now-playing <device_id>
 ```
 
 ### Disconnect
 
 ```bash
-python -m airplay_agent.cli disconnect <device_id>
+castmasta disconnect <device_id>
 ```
+
+## Google Cast Notes
+
+- **Power on** is a no-op (Cast devices are always on when reachable)
+- **Power off** quits the running app on the Chromecast
+- **send-key** is not supported (raises an error)
+- **Pairing** is not required for Google Cast devices
+- Local file streaming uses an HTTP file server on port 8089 (configurable via `AgentConfig.cast_file_server_port`)
 
 ## LLM Integration
 
 ### Get tool definitions (JSON)
 
 ```bash
-python -m airplay_agent.cli tools
+castmasta tools
 ```
 
-This outputs JSON tool definitions compatible with Ollama's function calling.
-
-### Ollama Integration
-
-1. Start Ollama with a model that supports tools:
-   ```bash
-   ollama run qwen2.5-coder
-   ```
-
-2. Use the tool definitions from `tools` output to enable function calling.
-
-### OpenCode Integration
-
-The project includes `opencode.json` configured for Ollama at `localhost:11434`:
-
-```bash
-opencode
-```
+This outputs JSON tool definitions compatible with LLM function calling.
 
 ## MCP Server
 
-The AirPlay agent can be run as an MCP (Model Context Protocol) server, making it compatible with Claude Desktop, Cursor, and other MCP clients.
-
-### Installation
-
-```bash
-pip install -e ".[mcp]"
-# or just:
-pip install fastmcp
-```
+CastMasta can be run as an MCP (Model Context Protocol) server, compatible with Claude Desktop, Cursor, and other MCP clients.
 
 ### Running the MCP Server
 
 ```bash
 # Run with stdio transport (for Claude Desktop)
-python -m airplay_agent.mcp_server
+python -m castmasta.mcp_server
 
 # Or use the CLI entry point (after pip install)
-airplay-mcp
+castmasta-mcp
 ```
 
 ### Claude Desktop Configuration
 
-Add this to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on Mac or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
+Add this to your Claude Desktop config:
 
 ```json
 {
   "mcpServers": {
-    "airplay-agent": {
-      "command": "python",
-      "args": ["-m", "airplay_agent.mcp_server"],
-      "env": {
-        "PATH": "/path/to/your/venv/bin"
-      }
-    }
-  }
-}
-```
-
-Or if installed globally:
-
-```json
-{
-  "mcpServers": {
-    "airplay-agent": {
-      "command": "airplay-mcp"
+    "castmasta": {
+      "command": "castmasta-mcp"
     }
   }
 }
@@ -216,43 +207,43 @@ Or if installed globally:
 
 ### Available MCP Tools
 
-The MCP server exposes these tools:
-- `scan_devices` - Scan for AirPlay devices
-- `connect_device` - Connect to a device by name
+- `scan_devices` - Scan for AirPlay and Google Cast devices
+- `connect_device` - Connect to a device by name (auto-detects type)
 - `disconnect_device` - Disconnect from a device
 - `power_on` / `power_off` / `get_power_state` - Power control
 - `play` / `pause` / `stop` / `seek` - Playback control
 - `play_url` - Play a URL
 - `stream_file` - Stream a local file
+- `display_image` - Display a static image (converts to video via ffmpeg)
 - `set_volume` / `volume_up` / `volume_down` / `get_volume` - Volume control
 - `now_playing` - Get current media info
-- `send_key` - Send remote control key
-- `pair_device` / `pair_device_with_pin` - Device pairing
+- `send_key` - Send remote control key (AirPlay only)
+- `pair_device` / `pair_device_with_pin` - Device pairing (AirPlay only)
 
 ## Python API
 
 ```python
 import asyncio
-from airplay_agent import AirPlayAgent
+from castmasta import CastAgent
 
 async def main():
-    agent = AirPlayAgent()
-    
-    # Scan for devices
+    agent = CastAgent()
+
+    # Scan for devices (both AirPlay and Google Cast)
     devices = await agent.scan()
     print(devices)
-    
-    # Connect
-    await agent.connect_by_name("Main Bedroom")
-    
+
+    # Connect (auto-detects device type)
+    await agent.connect_by_name("Living Room TV")
+
     # Control
-    await agent.play_url("main-bedroom", "https://example.com/video.mp4")
-    await agent.set_volume("main-bedroom", 0.5)
-    
+    await agent.play_url("device-id", "https://example.com/video.mp4")
+    await agent.set_volume("device-id", 0.5)
+
     # Get now playing
-    info = await agent.now_playing("main-bedroom")
+    info = await agent.now_playing("device-id")
     print(info)
-    
+
     await agent.disconnect_all()
 
 asyncio.run(main())
@@ -260,9 +251,18 @@ asyncio.run(main())
 
 ## Supported Devices
 
+### AirPlay
 - Apple TV (all generations)
 - HomePod / HomePod mini
 - AirPort Express
 - AirPlay-enabled receivers (Onkyo, Denon, etc.)
 - Macs (as AirPlay targets)
 - Roku (AirPlay-enabled)
+
+### Google Cast
+- Chromecast (all generations)
+- Chromecast with Google TV
+- Google Home / Home Mini / Home Max
+- Google Nest Hub / Nest Hub Max
+- Nest Audio
+- Cast-enabled speakers and displays

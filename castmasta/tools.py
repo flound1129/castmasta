@@ -2,8 +2,8 @@
 
 TOOLS = [
     {
-        "name": "scan_airplay_devices",
-        "description": "Scan the local network for AirPlay devices (Apple TV, HomePod, AirPort Express, etc.)",
+        "name": "scan_devices",
+        "description": "Scan the local network for AirPlay and Google Cast devices",
         "parameters": {
             "type": "object",
             "properties": {
@@ -17,13 +17,13 @@ TOOLS = [
     },
     {
         "name": "connect_device",
-        "description": "Connect to a specific AirPlay device by name or identifier",
+        "description": "Connect to a device by name or identifier (auto-detects AirPlay or Google Cast)",
         "parameters": {
             "type": "object",
             "properties": {
                 "name": {
                     "type": "string",
-                    "description": "Device name (e.g., 'Living Room Apple TV') or identifier",
+                    "description": "Device name (e.g., 'Living Room TV') or identifier",
                 }
             },
             "required": ["name"],
@@ -31,7 +31,7 @@ TOOLS = [
     },
     {
         "name": "disconnect_device",
-        "description": "Disconnect from an AirPlay device",
+        "description": "Disconnect from a device",
         "parameters": {
             "type": "object",
             "properties": {
@@ -42,7 +42,7 @@ TOOLS = [
     },
     {
         "name": "power_on",
-        "description": "Turn on an AirPlay device",
+        "description": "Turn on a device (AirPlay only; no-op on Google Cast)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -53,7 +53,7 @@ TOOLS = [
     },
     {
         "name": "power_off",
-        "description": "Turn off an AirPlay device",
+        "description": "Turn off a device (quits app on Google Cast)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -108,7 +108,7 @@ TOOLS = [
     },
     {
         "name": "play_url",
-        "description": "Play a video or audio URL (YouTube, streaming, etc.)",
+        "description": "Play a video or audio URL",
         "parameters": {
             "type": "object",
             "properties": {
@@ -139,7 +139,7 @@ TOOLS = [
     },
     {
         "name": "display_image",
-        "description": "Display a static image on an AirPlay device (converts to video via ffmpeg)",
+        "description": "Display a static image on a device (converts to video via ffmpeg)",
         "parameters": {
             "type": "object",
             "properties": {
@@ -240,7 +240,7 @@ TOOLS = [
     },
     {
         "name": "send_key",
-        "description": "Send a remote control key press",
+        "description": "Send a remote control key press (AirPlay only)",
         "parameters": {
             "type": "object",
             "properties": {

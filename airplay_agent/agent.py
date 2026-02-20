@@ -23,9 +23,13 @@ ALLOWED_MEDIA_EXTENSIONS = {
     ".mp3", ".wav", ".flac", ".ogg", ".mp4", ".m4a", ".aac", ".m4v", ".mov",
 }
 
+ALLOWED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
+
 ALLOWED_URL_SCHEMES = {"http", "https"}
 
 MAX_SCAN_TIMEOUT = 30
+MIN_DISPLAY_DURATION = 1
+MAX_DISPLAY_DURATION = 86400
 
 
 class CredentialStore:
@@ -303,6 +307,57 @@ class AirPlayAgent:
             )
         atv = self._get_device(identifier)
         await atv.stream.stream_file(str(path))
+
+    async def display_image(self, identifier: str, image_path: str, duration: int = 3600):
+        """Display a static image on an AirPlay device by converting it to video.
+
+        Converts the image to an MP4 video of the specified duration using ffmpeg,
+        then streams it via AirPlay.
+
+        Args:
+            identifier: Device identifier.
+            image_path: Path to the image file.
+            duration: How long to display the image in seconds (default: 3600, max: 86400).
+        """
+        if not isinstance(duration, (int, float)) or math.isnan(duration) or math.isinf(duration):
+            raise ValueError("Duration must be a finite number.")
+        duration = max(MIN_DISPLAY_DURATION, min(int(duration), MAX_DISPLAY_DURATION))
+
+        path = Path(image_path).resolve()
+        if path.is_symlink():
+            real = Path(os.path.realpath(path))
+            if real != path:
+                raise ValueError("Symlinks are not allowed for image display.")
+        if not path.is_file():
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+        if path.suffix.lower() not in ALLOWED_IMAGE_EXTENSIONS:
+            raise ValueError(
+                f"Unsupported image type '{path.suffix}'. "
+                f"Allowed: {', '.join(sorted(ALLOWED_IMAGE_EXTENSIONS))}"
+            )
+
+        atv = self._get_device(identifier)
+
+        fd, tmp_path = tempfile.mkstemp(suffix=".mp4")
+        os.close(fd)
+        os.chmod(tmp_path, 0o600)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-loop", "1", "-i", str(path),
+                "-c:v", "libx264", "-t", str(duration),
+                "-pix_fmt", "yuv420p", "-y", tmp_path,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"ffmpeg failed (exit {proc.returncode}): {stderr.decode(errors='replace')}"
+                )
+            await atv.stream.stream_file(tmp_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     async def set_volume(self, identifier: str, volume: float):
         """Set volume (0.0 to 1.0)."""

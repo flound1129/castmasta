@@ -1,17 +1,17 @@
-"""MCP server for AirPlay agent."""
+"""MCP server for CastMasta."""
 import logging
 from typing import Optional
 
 from fastmcp import FastMCP
 
-from airplay_agent import AirPlayAgent
+from castmasta import CastAgent
 from pyatv.const import Protocol
 
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("AirPlay Agent")
+mcp = FastMCP("CastMasta")
 
-agent: AirPlayAgent = AirPlayAgent()
+agent: CastAgent = CastAgent()
 
 
 def _parse_protocol(protocol: str) -> Optional[Protocol]:
@@ -25,7 +25,7 @@ def _parse_protocol(protocol: str) -> Optional[Protocol]:
 
 @mcp.tool()
 async def scan_devices(timeout: int = 5) -> str:
-    """Scan the local network for AirPlay devices.
+    """Scan the local network for AirPlay and Google Cast devices.
 
     Returns a list of all discovered devices with their names, addresses, and supported protocols.
     """
@@ -35,7 +35,7 @@ async def scan_devices(timeout: int = 5) -> str:
 
     result = ["Found devices:\n"]
     for dev in devices:
-        result.append(f"- {dev['name']} ({dev['address']})")
+        result.append(f"- {dev['name']} ({dev['address']}) [{dev['device_type']}]")
         result.append(f"  Identifier: {dev['identifier']}")
         result.append(f"  Protocols: {', '.join(dev['protocols'])}")
     return "\n".join(result)
@@ -43,27 +43,26 @@ async def scan_devices(timeout: int = 5) -> str:
 
 @mcp.tool()
 async def connect_device(name: str, protocol: str = "airplay") -> str:
-    """Connect to an AirPlay device by name.
+    """Connect to a device by name (auto-detects AirPlay or Google Cast).
 
     Args:
-        name: The name of the device to connect to (e.g., 'Main Bedroom')
+        name: The name of the device to connect to
         protocol: The protocol to use - 'airplay' or 'companion' (default: airplay)
     """
     proto = _parse_protocol(protocol)
     if proto is None:
         return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        atv = await agent.connect_by_name(name, proto)
-        identifier = atv.device_info.identifier if hasattr(atv.device_info, 'identifier') else "unknown"
-        return f"Connected to {name} (identifier: {identifier})"
-    except Exception as e:
+        backend = await agent.connect_by_name(name, proto)
+        return f"Connected to {name} [{backend.device_type}]"
+    except Exception:
         logger.exception("Failed to connect to device")
         return f"Failed to connect to {name}: device unreachable or pairing required"
 
 
 @mcp.tool()
 async def disconnect_device(identifier: str) -> str:
-    """Disconnect from an AirPlay device.
+    """Disconnect from a device.
 
     Args:
         identifier: The device identifier
@@ -71,14 +70,14 @@ async def disconnect_device(identifier: str) -> str:
     try:
         await agent.disconnect(identifier)
         return f"Disconnected from {identifier}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to disconnect")
         return f"Failed to disconnect from {identifier}"
 
 
 @mcp.tool()
 async def power_on(identifier: str) -> str:
-    """Turn on an AirPlay device.
+    """Turn on a device (AirPlay only; no-op on Google Cast).
 
     Args:
         identifier: The device identifier
@@ -86,14 +85,14 @@ async def power_on(identifier: str) -> str:
     try:
         await agent.power_on(identifier)
         return f"Powered on {identifier}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to power on device")
         return f"Failed to power on {identifier}"
 
 
 @mcp.tool()
 async def power_off(identifier: str) -> str:
-    """Turn off an AirPlay device.
+    """Turn off a device (quits app on Google Cast).
 
     Args:
         identifier: The device identifier
@@ -101,7 +100,7 @@ async def power_off(identifier: str) -> str:
     try:
         await agent.power_off(identifier)
         return f"Powered off {identifier}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to power off device")
         return f"Failed to power off {identifier}"
 
@@ -116,7 +115,7 @@ async def get_power_state(identifier: str) -> str:
     try:
         state = await agent.get_power_state(identifier)
         return f"Power state: {'on' if state else 'off'}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to get power state")
         return f"Failed to get power state for {identifier}"
 
@@ -131,7 +130,7 @@ async def play(identifier: str) -> str:
     try:
         await agent.play(identifier)
         return "Playing"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to play")
         return "Failed to start playback"
 
@@ -146,7 +145,7 @@ async def pause(identifier: str) -> str:
     try:
         await agent.pause(identifier)
         return "Paused"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to pause")
         return "Failed to pause playback"
 
@@ -161,7 +160,7 @@ async def stop(identifier: str) -> str:
     try:
         await agent.stop(identifier)
         return "Stopped"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to stop")
         return "Failed to stop playback"
 
@@ -183,7 +182,7 @@ async def play_url(identifier: str, url: str, position: float = 0) -> str:
         return f"Playing URL on {identifier}"
     except ValueError as e:
         return f"Invalid URL: {e}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to play URL")
         return f"Failed to play URL on {identifier}"
 
@@ -201,14 +200,14 @@ async def stream_file(identifier: str, file_path: str) -> str:
         return f"Streaming file on {identifier}"
     except (ValueError, FileNotFoundError) as e:
         return f"Invalid file: {e}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to stream file")
         return f"Failed to stream file on {identifier}"
 
 
 @mcp.tool()
 async def display_image(identifier: str, image_path: str, duration: int = 3600) -> str:
-    """Display a static image on an AirPlay device.
+    """Display a static image on a device.
 
     Converts the image to a video using ffmpeg and streams it to the device.
 
@@ -224,7 +223,7 @@ async def display_image(identifier: str, image_path: str, duration: int = 3600) 
         return f"Invalid image: {e}"
     except RuntimeError as e:
         return f"ffmpeg error: {e}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to display image")
         return f"Failed to display image on {identifier}"
 
@@ -242,7 +241,7 @@ async def set_volume(identifier: str, volume: float) -> str:
         return f"Volume set to {volume}"
     except ValueError as e:
         return str(e)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to set volume")
         return f"Failed to set volume on {identifier}"
 
@@ -260,7 +259,7 @@ async def volume_up(identifier: str, delta: float = 0.1) -> str:
         return f"Volume up by {delta}"
     except ValueError as e:
         return str(e)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to increase volume")
         return f"Failed to increase volume on {identifier}"
 
@@ -278,7 +277,7 @@ async def volume_down(identifier: str, delta: float = 0.1) -> str:
         return f"Volume down by {delta}"
     except ValueError as e:
         return str(e)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to decrease volume")
         return f"Failed to decrease volume on {identifier}"
 
@@ -293,7 +292,7 @@ async def get_volume(identifier: str) -> str:
     try:
         volume = await agent.get_volume(identifier)
         return f"Volume: {volume}"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to get volume")
         return f"Failed to get volume for {identifier}"
 
@@ -314,7 +313,7 @@ async def now_playing(identifier: str) -> str:
             f"State: {info.get('device_state', 'Unknown')}\n"
             f"Position: {info.get('position', 0)}s / {info.get('total_time', 0)}s"
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to get now playing info")
         return f"Failed to get now playing info for {identifier}"
 
@@ -330,14 +329,14 @@ async def seek(identifier: str, position: float) -> str:
     try:
         await agent.seek(identifier, position)
         return f"Seeked to {position}s"
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to seek")
         return f"Failed to seek on {identifier}"
 
 
 @mcp.tool()
 async def send_key(identifier: str, key: str) -> str:
-    """Send a remote control key press.
+    """Send a remote control key press (AirPlay only).
 
     Args:
         identifier: The device identifier
@@ -348,14 +347,14 @@ async def send_key(identifier: str, key: str) -> str:
         return f"Sent key: {key}"
     except ValueError as e:
         return str(e)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to send key")
         return f"Failed to send key on {identifier}"
 
 
 @mcp.tool()
 async def pair_device(name: str, protocol: str = "airplay") -> str:
-    """Start pairing with a device (for devices that require PIN).
+    """Start pairing with a device (AirPlay only).
 
     Args:
         name: The name of the device to pair with
@@ -371,14 +370,16 @@ async def pair_device(name: str, protocol: str = "airplay") -> str:
                 result = await agent.pair(dev["identifier"], dev["address"], dev["name"], proto)
                 return f"Pairing initiated for {name}. Status: {result['status']}. Use pair_device_with_pin to complete."
         return f"Device '{name}' not found"
-    except Exception as e:
+    except ValueError as e:
+        return str(e)
+    except Exception:
         logger.exception("Failed to start pairing")
         return f"Failed to pair with {name}"
 
 
 @mcp.tool()
 async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay") -> str:
-    """Complete pairing with a PIN code.
+    """Complete pairing with a PIN code (AirPlay only).
 
     Args:
         name: The name of the device to pair with
@@ -399,7 +400,7 @@ async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay") -
         return f"Device '{name}' not found"
     except ValueError as e:
         return str(e)
-    except Exception as e:
+    except Exception:
         logger.exception("Failed to complete pairing")
         return f"Failed to complete pairing with {name}"
 

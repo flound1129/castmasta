@@ -1,14 +1,14 @@
 [Unit]
-Description=AirPlay Agent MCP Server
+Description=CastMasta MCP Server
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 User=ollama
-WorkingDirectory=/home/ollama/airplay-agent
+WorkingDirectory=/home/ollama/castmasta
 Environment="PATH=/home/ollama/venv/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/home/ollama/venv/bin/python -m airplay_agent.mcp_server
+ExecStart=/home/ollama/venv/bin/python -m castmasta.mcp_server
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
@@ -19,7 +19,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/home/ollama/.airplay-agent
+ReadWritePaths=/home/ollama/.castmasta
 PrivateDevices=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
