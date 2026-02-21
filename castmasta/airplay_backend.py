@@ -1,21 +1,38 @@
 """AirPlay backend using pyatv."""
 
-import ipaddress
+import asyncio
 import logging
 from typing import Optional
 
 import pyatv
-from pyatv import conf, connect as pyatv_connect
 from pyatv.const import Protocol
+from pyatv.storage.memory_storage import MemoryStorage
 
 from .backend import DeviceBackend
 from .credentials import CredentialStore
 
 logger = logging.getLogger(__name__)
 
+# Fixed UDP ports for RAOP timing/control so firewall rules stay stable.
+RAOP_TIMING_PORT = 50001
+RAOP_CONTROL_PORT = 50002
+
+
+class _PinnedPortStorage(MemoryStorage):
+    """MemoryStorage that pins RAOP timing/control to fixed UDP ports."""
+
+    async def get_settings(self, config):
+        settings = await super().get_settings(config)
+        settings.protocols.raop.timing_port = RAOP_TIMING_PORT
+        settings.protocols.raop.control_port = RAOP_CONTROL_PORT
+        return settings
+
+
+_storage = _PinnedPortStorage()
+
 
 class AirPlayBackend(DeviceBackend):
-    """Backend for AirPlay devices (Apple TV, HomePod, etc.)."""
+    """Backend for AirPlay devices (Apple TV, HomePod, AV receivers, etc.)."""
 
     device_type = "airplay"
 
@@ -24,33 +41,31 @@ class AirPlayBackend(DeviceBackend):
         self._credentials = credentials
 
     async def connect(self, identifier: str, address: str, name: str, **kwargs) -> None:
-        protocol = kwargs.get("protocol", Protocol.AirPlay)
-        device_config = conf.AppleTV(
-            address=ipaddress.IPv4Address(address),
-            name=name,
+        atvs = await pyatv.scan(
+            loop=asyncio.get_event_loop(), timeout=10, hosts=[address],
         )
+        target = next((a for a in atvs if a.name == name), None)
+        if target is None:
+            # Fall back to identifier match
+            target = next((a for a in atvs if str(a.identifier) == identifier), None)
+        if target is None:
+            raise ValueError(f"AirPlay device '{name}' not found at {address}")
 
-        if protocol == Protocol.AirPlay:
-            service = conf.AirPlayService(identifier, port=7000)
-            if self._credentials:
-                creds = self._credentials.get(identifier, "AirPlay")
+        if self._credentials:
+            for proto in (Protocol.AirPlay, Protocol.RAOP, Protocol.Companion):
+                creds = self._credentials.get(identifier, proto.name)
                 if creds:
-                    service.credentials = creds
-        elif protocol == Protocol.Companion:
-            service = conf.CompanionService(port=49153)
-            if self._credentials:
-                creds = self._credentials.get(identifier, "Companion")
-                if creds:
-                    service.credentials = creds
-        else:
-            service = conf.AirPlayService(identifier, port=7000)
+                    target.set_credentials(proto, creds)
+                    logger.debug("Loaded %s credentials for %s", proto.name, name)
 
-        device_config.add_service(service)
-        self._atv = await pyatv_connect(device_config)
+        self._atv = await pyatv.connect(
+            target, loop=asyncio.get_event_loop(), storage=_storage,
+        )
+        logger.info("Connected to AirPlay device: %s", name)
 
     async def disconnect(self) -> None:
         if self._atv:
-            await self._atv.close()
+            self._atv.close()
             self._atv = None
 
     async def stream_file(self, file_path: str) -> None:
@@ -90,7 +105,10 @@ class AirPlayBackend(DeviceBackend):
         }
 
     async def power_on(self) -> None:
-        await self._atv.power.turn_on()
+        try:
+            await self._atv.power.turn_on()
+        except Exception as e:
+            logger.warning("power_on not available: %s", e)
 
     async def power_off(self) -> None:
         await self._atv.power.turn_off()

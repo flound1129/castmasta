@@ -17,7 +17,7 @@ def mock_atv():
     atv.audio.volume = 0.5
     atv.power = AsyncMock()
     atv.metadata = AsyncMock()
-    atv.close = AsyncMock()
+    atv.close = MagicMock()
     return atv
 
 
@@ -28,16 +28,24 @@ async def test_device_type(backend):
 
 @pytest.mark.asyncio
 async def test_connect(backend):
-    with patch("castmasta.airplay_backend.pyatv_connect", new_callable=AsyncMock) as mock_connect:
-        mock_connect.return_value = AsyncMock()
+    mock_target = MagicMock()
+    mock_target.name = "Test TV"
+    mock_target.identifier = "id1"
+    mock_atv_instance = MagicMock()
+
+    with patch("castmasta.airplay_backend.pyatv.scan", new_callable=AsyncMock) as mock_scan, \
+         patch("castmasta.airplay_backend.pyatv.connect", new_callable=AsyncMock) as mock_connect:
+        mock_scan.return_value = [mock_target]
+        mock_connect.return_value = mock_atv_instance
         await backend.connect("id1", "192.168.1.100", "Test TV")
-        assert backend._atv is not None
+        assert backend._atv is mock_atv_instance
 
 
 @pytest.mark.asyncio
 async def test_disconnect(backend):
-    backend._atv = AsyncMock()
+    backend._atv = MagicMock()
     await backend.disconnect()
+    backend._atv  # should be None
     assert backend._atv is None
 
 

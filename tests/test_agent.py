@@ -147,9 +147,10 @@ async def test_announce_streams_wav(agent, mock_airplay_backend, tmp_path):
     with patch("castmasta.agent.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
         await agent.announce("dev1", "Hello world")
 
+    from castmasta.agent import PIPER_BIN
     mock_exec.assert_called_once()
     call_args = mock_exec.call_args[0]
-    assert call_args[0] == "piper"
+    assert call_args[0] == PIPER_BIN
     assert "--output_file" in call_args
     output_path = call_args[call_args.index("--output_file") + 1]
     assert output_path.endswith(".wav")

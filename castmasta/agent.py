@@ -6,6 +6,8 @@ import logging
 import math
 import os
 import re
+import shutil
+import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -40,6 +42,7 @@ PIPER_VOICE_DATA_DIR = Path.home() / ".local/share/piper-voices"
 DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_ANNOUNCE_TEXT_LEN = 4000
 _VOICE_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
+PIPER_BIN = shutil.which("piper") or str(Path(sys.executable).parent / "piper")
 
 
 class CastAgent:
@@ -175,7 +178,7 @@ class CastAgent:
             raise ValueError(f"Unsupported protocol for pairing: {protocol}")
 
         device_config.add_service(service)
-        handler = await pyatv_pair(device_config, protocol)
+        handler = await pyatv_pair(device_config, protocol, loop=asyncio.get_event_loop())
         await handler.begin()
 
         handler_key = f"{identifier}:{protocol.name}"
@@ -288,7 +291,7 @@ class CastAgent:
         os.chmod(tmp_path, 0o600)
         try:
             proc = await asyncio.create_subprocess_exec(
-                "piper",
+                PIPER_BIN,
                 "--model", voice,
                 "--data-dir", str(PIPER_VOICE_DATA_DIR),
                 "--output_file", tmp_path,
