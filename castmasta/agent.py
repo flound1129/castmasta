@@ -299,6 +299,13 @@ class CastAgent:
 
         backend = self._get_backend(identifier)
 
+        # Wake AirPlay device and reset its auto-off timer before streaming.
+        if backend.device_type == "airplay":
+            try:
+                await backend.send_key("menu")
+            except Exception:
+                pass
+
         fd, tmp_path = tempfile.mkstemp(suffix=".wav")
         os.close(fd)
         os.chmod(tmp_path, 0o600)
