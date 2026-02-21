@@ -245,6 +245,21 @@ def display_image(ctx, identifier, image_path, duration):
 
 @cli.command()
 @click.argument("identifier")
+@click.argument("text")
+@click.option(
+    "--voice", "-v", default="en_US-lessac-medium",
+    help="Piper voice model name (default: en_US-lessac-medium)",
+)
+@click.pass_context
+def announce(ctx, identifier, text, voice):
+    """Synthesise text to speech and play it on a device."""
+    agent: CastAgent = ctx.obj["agent"]
+    asyncio.run(agent.announce(identifier, text, voice))
+    click.echo(f"Announced: {text}")
+
+
+@cli.command()
+@click.argument("identifier")
 @click.argument("volume", type=float)
 @click.pass_context
 def set_volume(ctx, identifier, volume):
