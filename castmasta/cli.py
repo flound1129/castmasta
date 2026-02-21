@@ -245,7 +245,7 @@ def display_image(ctx, identifier, image_path, duration):
 
 @cli.command()
 @click.argument("identifier")
-@click.argument("text")
+@click.argument("text", nargs=-1, required=True)
 @click.option(
     "--voice", "-v", default="en_US-lessac-medium",
     help="Piper voice model name (default: en_US-lessac-medium)",
@@ -253,8 +253,14 @@ def display_image(ctx, identifier, image_path, duration):
 @click.pass_context
 def announce(ctx, identifier, text, voice):
     """Synthesise text to speech and play it on a device."""
+    text = " ".join(text)
     agent: CastAgent = ctx.obj["agent"]
-    asyncio.run(agent.announce(identifier, text, voice))
+    try:
+        asyncio.run(agent.announce(identifier, text, voice))
+    except (ValueError, FileNotFoundError) as e:
+        raise click.ClickException(str(e))
+    except RuntimeError as e:
+        raise click.ClickException(f"Piper TTS error: {e}")
     click.echo(f"Announced: {text}")
 
 
