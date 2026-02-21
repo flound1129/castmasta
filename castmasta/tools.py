@@ -158,6 +158,26 @@ TOOLS = [
         },
     },
     {
+        "name": "announce",
+        "description": "Synthesise text to speech using Piper TTS and play it on a device",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "identifier": {"type": "string", "description": "Device identifier"},
+                "text": {
+                    "type": "string",
+                    "description": "Text to speak (max 4000 characters)",
+                },
+                "voice": {
+                    "type": "string",
+                    "description": "Piper voice model name (default: en_US-lessac-medium)",
+                    "default": "en_US-lessac-medium",
+                },
+            },
+            "required": ["identifier", "text"],
+        },
+    },
+    {
         "name": "set_volume",
         "description": "Set volume (0.0 = mute, 1.0 = max)",
         "parameters": {
