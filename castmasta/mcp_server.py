@@ -229,6 +229,30 @@ async def display_image(identifier: str, image_path: str, duration: int = 3600) 
 
 
 @mcp.tool()
+async def announce(identifier: str, text: str, voice: str = "en_US-lessac-medium") -> str:
+    """Synthesise text to speech and play it on a device.
+
+    Uses Piper TTS to convert text to a WAV file and streams it to the device.
+    Voice models must be pre-installed in ~/.local/share/piper-voices/.
+
+    Args:
+        identifier: The device identifier
+        text: Text to speak (max 4000 characters)
+        voice: Piper voice model name (default: en_US-lessac-medium)
+    """
+    try:
+        await agent.announce(identifier, text, voice)
+        return f"Announced on {identifier}: {text[:60]}{'...' if len(text) > 60 else ''}"
+    except (ValueError, FileNotFoundError) as e:
+        return f"Invalid input: {e}"
+    except RuntimeError as e:
+        return f"Piper TTS error: {e}"
+    except Exception:
+        logger.exception("Failed to announce")
+        return f"Failed to announce on {identifier}"
+
+
+@mcp.tool()
 async def set_volume(identifier: str, volume: float) -> str:
     """Set the volume on a device.
 
