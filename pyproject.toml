@@ -9,6 +9,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     "click>=8.0.0",
     "fastmcp>=2.0.0",
+    "piper-tts>=1.2",
 ]
 
 [project.optional-dependencies]
