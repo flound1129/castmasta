@@ -135,8 +135,15 @@ async def test_stream_file_validates_extension(agent, mock_airplay_backend, tmp_
         await agent.stream_file("dev1", str(bad_file))
 
 
+@pytest.fixture(autouse=False)
+def no_prepend_silence():
+    """Patch _prepend_silence so announce tests don't need real WAV data."""
+    with patch("castmasta.agent._prepend_silence"):
+        yield
+
+
 @pytest.mark.asyncio
-async def test_announce_streams_wav(agent, mock_airplay_backend, tmp_path):
+async def test_announce_streams_wav(agent, mock_airplay_backend, tmp_path, no_prepend_silence):
     """announce() runs piper and calls stream_file with a .wav path."""
     agent.devices["dev1"] = mock_airplay_backend
 
@@ -161,7 +168,7 @@ async def test_announce_streams_wav(agent, mock_airplay_backend, tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_announce_cleans_up_temp_file_on_success(agent, mock_airplay_backend):
+async def test_announce_cleans_up_temp_file_on_success(agent, mock_airplay_backend, no_prepend_silence):
     """Temp WAV file is deleted after streaming."""
     agent.devices["dev1"] = mock_airplay_backend
 
@@ -236,7 +243,7 @@ async def test_announce_cleans_up_on_failure(agent, mock_airplay_backend):
 
 
 @pytest.mark.asyncio
-async def test_announce_cleans_up_when_stream_fails(agent, mock_airplay_backend):
+async def test_announce_cleans_up_when_stream_fails(agent, mock_airplay_backend, no_prepend_silence):
     """Temp WAV file is deleted even if stream_file raises."""
     agent.devices["dev1"] = mock_airplay_backend
     captured_path = []
@@ -273,3 +280,26 @@ async def test_announce_raises_on_text_too_long(agent, mock_airplay_backend):
     agent.devices["dev1"] = mock_airplay_backend
     with pytest.raises(ValueError, match="too long"):
         await agent.announce("dev1", "x" * 4001)
+
+
+def test_prepend_silence_adds_frames(tmp_path):
+    """_prepend_silence adds the expected number of silent frames."""
+    import wave as wave_mod
+    from castmasta.agent import _prepend_silence
+
+    wav_path = str(tmp_path / "test.wav")
+    framerate, nchannels, sampwidth = 22050, 1, 2
+    original_frames = 100
+
+    with wave_mod.open(wav_path, "wb") as w:
+        w.setnchannels(nchannels)
+        w.setsampwidth(sampwidth)
+        w.setframerate(framerate)
+        w.writeframes(b"\x01\x02" * original_frames)
+
+    _prepend_silence(wav_path, seconds=1.0)
+
+    with wave_mod.open(wav_path, "rb") as w:
+        total = w.getnframes()
+
+    assert total == original_frames + framerate  # 1 second of silence added

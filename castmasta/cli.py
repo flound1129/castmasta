@@ -244,19 +244,32 @@ def display_image(ctx, identifier, image_path, duration):
 
 
 @cli.command()
-@click.argument("identifier")
+@click.argument("name")
 @click.argument("text", nargs=-1, required=True)
 @click.option(
     "--voice", "-v", default="en_US-lessac-medium",
     help="Piper voice model name (default: en_US-lessac-medium)",
 )
 @click.pass_context
-def announce(ctx, identifier, text, voice):
-    """Synthesise text to speech and play it on a device."""
+def announce(ctx, name, text, voice):
+    """Synthesise text to speech and play it on a device (by name)."""
     text = " ".join(text)
     agent: CastAgent = ctx.obj["agent"]
+
+    async def _run():
+        devices = await agent.scan(timeout=10)
+        dev = next((d for d in devices if d["name"] == name), None)
+        if dev is None:
+            raise ValueError(f"Device '{name}' not found")
+        await agent.connect(dev["identifier"], dev["address"], dev["name"],
+                            device_type=dev["device_type"])
+        try:
+            await agent.announce(dev["identifier"], text, voice)
+        finally:
+            await agent.disconnect(dev["identifier"])
+
     try:
-        asyncio.run(agent.announce(identifier, text, voice))
+        asyncio.run(_run())
     except (ValueError, FileNotFoundError) as e:
         raise click.ClickException(str(e))
     except RuntimeError as e:

@@ -9,6 +9,7 @@ import re
 import shutil
 import sys
 import tempfile
+import wave
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
@@ -43,6 +44,18 @@ DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_ANNOUNCE_TEXT_LEN = 4000
 _VOICE_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
 PIPER_BIN = shutil.which("piper") or str(Path(sys.executable).parent / "piper")
+
+
+def _prepend_silence(wav_path: str, seconds: float = 1.5) -> None:
+    """Prepend silence to a WAV file in-place to absorb RAOP stream startup latency."""
+    with wave.open(wav_path, "rb") as src:
+        params = src.getparams()
+        audio = src.readframes(src.getnframes())
+    silence_frames = int(params.framerate * seconds)
+    silence = b"\x00" * silence_frames * params.nchannels * params.sampwidth
+    with wave.open(wav_path, "wb") as dst:
+        dst.setparams(params)
+        dst.writeframes(silence + audio)
 
 
 class CastAgent:
@@ -304,6 +317,7 @@ class CastAgent:
                 raise RuntimeError(
                     f"piper failed (exit {proc.returncode}): {stderr.decode(errors='replace')}"
                 )
+            _prepend_silence(tmp_path)
             await backend.stream_file(tmp_path)
         finally:
             if os.path.exists(tmp_path):
