@@ -232,5 +232,31 @@ async def test_announce_cleans_up_on_failure(agent, mock_airplay_backend):
         with pytest.raises(RuntimeError):
             await agent.announce("dev1", "Hello")
 
-    if captured_path:
-        assert not Path(captured_path[0]).exists(), "Temp file not cleaned up on failure"
+    assert captured_path, "No temp file path captured"
+    assert not Path(captured_path[0]).exists(), "Temp file not cleaned up on failure"
+
+
+@pytest.mark.asyncio
+async def test_announce_cleans_up_when_stream_fails(agent, mock_airplay_backend):
+    """Temp WAV file is deleted even if stream_file raises."""
+    agent.devices["dev1"] = mock_airplay_backend
+    captured_path = []
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.communicate = AsyncMock(return_value=(None, b""))
+
+    async def fake_exec(*args, **kwargs):
+        output_path = args[args.index("--output_file") + 1]
+        captured_path.append(output_path)
+        Path(output_path).write_bytes(b"fake wav")
+        return mock_proc
+
+    mock_airplay_backend.stream_file.side_effect = RuntimeError("connection lost")
+
+    with patch("castmasta.agent.asyncio.create_subprocess_exec", side_effect=fake_exec):
+        with pytest.raises(RuntimeError, match="connection lost"):
+            await agent.announce("dev1", "Hello")
+
+    assert captured_path, "No temp file path captured"
+    assert not Path(captured_path[0]).exists(), "Temp file not cleaned up when stream_file raises"
