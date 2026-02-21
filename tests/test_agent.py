@@ -132,3 +132,105 @@ async def test_stream_file_validates_extension(agent, mock_airplay_backend, tmp_
     bad_file.write_text("bad")
     with pytest.raises(ValueError, match="Unsupported file type"):
         await agent.stream_file("dev1", str(bad_file))
+import os
+from pathlib import Path
+import asyncio
+
+
+@pytest.mark.asyncio
+async def test_announce_streams_wav(agent, mock_airplay_backend, tmp_path):
+    """announce() runs piper and calls stream_file with a .wav path."""
+    agent.devices["dev1"] = mock_airplay_backend
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.communicate = AsyncMock(return_value=(None, b""))
+
+    with patch("castmasta.agent.asyncio.create_subprocess_exec", return_value=mock_proc) as mock_exec:
+        await agent.announce("dev1", "Hello world")
+
+    mock_exec.assert_called_once()
+    call_args = mock_exec.call_args[0]
+    assert call_args[0] == "piper"
+    assert "--output_file" in call_args
+    output_path = call_args[call_args.index("--output_file") + 1]
+    assert output_path.endswith(".wav")
+
+    mock_airplay_backend.stream_file.assert_called_once()
+    streamed_path = mock_airplay_backend.stream_file.call_args[0][0]
+    assert streamed_path.endswith(".wav")
+
+
+@pytest.mark.asyncio
+async def test_announce_cleans_up_temp_file_on_success(agent, mock_airplay_backend):
+    """Temp WAV file is deleted after streaming."""
+    agent.devices["dev1"] = mock_airplay_backend
+
+    captured_path = []
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 0
+    mock_proc.communicate = AsyncMock(return_value=(None, b""))
+
+    async def fake_exec(*args, **kwargs):
+        output_path = args[args.index("--output_file") + 1]
+        captured_path.append(output_path)
+        Path(output_path).write_bytes(b"fake wav")
+        return mock_proc
+
+    with patch("castmasta.agent.asyncio.create_subprocess_exec", side_effect=fake_exec):
+        await agent.announce("dev1", "Hello")
+
+    assert captured_path, "No temp file path captured"
+    assert not Path(captured_path[0]).exists(), "Temp file was not cleaned up"
+
+
+@pytest.mark.asyncio
+async def test_announce_raises_on_empty_text(agent, mock_airplay_backend):
+    agent.devices["dev1"] = mock_airplay_backend
+    with pytest.raises(ValueError, match="non-empty"):
+        await agent.announce("dev1", "")
+
+
+@pytest.mark.asyncio
+async def test_announce_raises_on_invalid_voice(agent, mock_airplay_backend):
+    agent.devices["dev1"] = mock_airplay_backend
+    with pytest.raises(ValueError, match="voice"):
+        await agent.announce("dev1", "Hello", voice="../evil/path")
+
+
+@pytest.mark.asyncio
+async def test_announce_raises_on_piper_failure(agent, mock_airplay_backend):
+    agent.devices["dev1"] = mock_airplay_backend
+
+    mock_proc = MagicMock()
+    mock_proc.returncode = 1
+    mock_proc.communicate = AsyncMock(return_value=(None, b"model not found"))
+
+    with patch("castmasta.agent.asyncio.create_subprocess_exec", return_value=mock_proc):
+        with pytest.raises(RuntimeError, match="piper"):
+            await agent.announce("dev1", "Hello")
+
+
+@pytest.mark.asyncio
+async def test_announce_cleans_up_on_failure(agent, mock_airplay_backend):
+    """Temp WAV file is deleted even if piper fails."""
+    agent.devices["dev1"] = mock_airplay_backend
+
+    captured_path = []
+
+    async def fake_exec(*args, **kwargs):
+        output_path = args[args.index("--output_file") + 1]
+        captured_path.append(output_path)
+        Path(output_path).write_bytes(b"partial")
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(None, b"error"))
+        return mock_proc
+
+    with patch("castmasta.agent.asyncio.create_subprocess_exec", side_effect=fake_exec):
+        with pytest.raises(RuntimeError):
+            await agent.announce("dev1", "Hello")
+
+    if captured_path:
+        assert not Path(captured_path[0]).exists(), "Temp file not cleaned up on failure"

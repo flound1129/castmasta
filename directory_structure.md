@@ -33,6 +33,8 @@ docs/contributing.md
 docs/plans
 docs/plans/2026-02-18-google-cast-implementation.md
 docs/plans/2026-02-18-google-cast-support-design.md
+docs/plans/2026-02-20-announce-design.md
+docs/plans/2026-02-20-announce.md
 .git
 .gitignore
 opencode.json

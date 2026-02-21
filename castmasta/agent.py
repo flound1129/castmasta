@@ -35,6 +35,10 @@ MAX_SCAN_TIMEOUT = 30
 MIN_DISPLAY_DURATION = 1
 MAX_DISPLAY_DURATION = 86400
 
+PIPER_VOICE_DATA_DIR = Path.home() / ".local/share/piper-voices"
+DEFAULT_VOICE = "en_US-lessac-medium"
+MAX_ANNOUNCE_TEXT_LEN = 4000
+
 
 class CastAgent:
     """Unified agent for controlling AirPlay and Google Cast devices."""
@@ -259,6 +263,41 @@ class CastAgent:
             if proc.returncode != 0:
                 raise RuntimeError(
                     f"ffmpeg failed (exit {proc.returncode}): {stderr.decode(errors='replace')}"
+                )
+            await backend.stream_file(tmp_path)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+
+    async def announce(
+        self, identifier: str, text: str, voice: str = DEFAULT_VOICE,
+    ) -> None:
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError("text must be a non-empty string.")
+        if len(text) > MAX_ANNOUNCE_TEXT_LEN:
+            raise ValueError(f"text too long (max {MAX_ANNOUNCE_TEXT_LEN} chars).")
+        if not voice or "/" in voice or "\\" in voice or ".." in voice:
+            raise ValueError("voice must be a simple model name with no path separators.")
+
+        backend = self._get_backend(identifier)
+
+        fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        os.chmod(tmp_path, 0o600)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "piper",
+                "--model", voice,
+                "--data-dir", str(PIPER_VOICE_DATA_DIR),
+                "--output_file", tmp_path,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate(input=text.encode())
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"piper failed (exit {proc.returncode}): {stderr.decode(errors='replace')}"
                 )
             await backend.stream_file(tmp_path)
         finally:
