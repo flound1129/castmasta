@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 from castmasta.agent import CastAgent
 from castmasta.config import AgentConfig
@@ -132,9 +133,6 @@ async def test_stream_file_validates_extension(agent, mock_airplay_backend, tmp_
     bad_file.write_text("bad")
     with pytest.raises(ValueError, match="Unsupported file type"):
         await agent.stream_file("dev1", str(bad_file))
-import os
-from pathlib import Path
-import asyncio
 
 
 @pytest.mark.asyncio
@@ -260,3 +258,17 @@ async def test_announce_cleans_up_when_stream_fails(agent, mock_airplay_backend)
 
     assert captured_path, "No temp file path captured"
     assert not Path(captured_path[0]).exists(), "Temp file not cleaned up when stream_file raises"
+
+
+@pytest.mark.asyncio
+async def test_announce_raises_on_whitespace_text(agent, mock_airplay_backend):
+    agent.devices["dev1"] = mock_airplay_backend
+    with pytest.raises(ValueError, match="non-empty"):
+        await agent.announce("dev1", "   ")
+
+
+@pytest.mark.asyncio
+async def test_announce_raises_on_text_too_long(agent, mock_airplay_backend):
+    agent.devices["dev1"] = mock_airplay_backend
+    with pytest.raises(ValueError, match="too long"):
+        await agent.announce("dev1", "x" * 4001)

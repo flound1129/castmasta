@@ -5,6 +5,7 @@ import ipaddress
 import logging
 import math
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Optional
@@ -38,6 +39,7 @@ MAX_DISPLAY_DURATION = 86400
 PIPER_VOICE_DATA_DIR = Path.home() / ".local/share/piper-voices"
 DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_ANNOUNCE_TEXT_LEN = 4000
+_VOICE_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 
 class CastAgent:
@@ -276,8 +278,8 @@ class CastAgent:
             raise ValueError("text must be a non-empty string.")
         if len(text) > MAX_ANNOUNCE_TEXT_LEN:
             raise ValueError(f"text too long (max {MAX_ANNOUNCE_TEXT_LEN} chars).")
-        if not voice or "/" in voice or "\\" in voice or ".." in voice:
-            raise ValueError("voice must be a simple model name with no path separators.")
+        if not voice or not _VOICE_RE.match(voice):
+            raise ValueError("voice must be a simple model name (letters, digits, hyphens, underscores only).")
 
         backend = self._get_backend(identifier)
 
