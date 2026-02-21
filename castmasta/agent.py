@@ -68,7 +68,7 @@ class CastAgent:
         self._pairing_handlers: dict[str, object] = {}
         self._last_scan: list[dict] = []
 
-    async def scan(self, timeout: int = 5) -> list[dict]:
+    async def scan(self, timeout: int = 10) -> list[dict]:
         timeout = max(1, min(timeout, MAX_SCAN_TIMEOUT))
         airplay_devices, cast_devices = await asyncio.gather(
             self._scan_airplay(timeout),

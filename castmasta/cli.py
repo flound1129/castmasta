@@ -18,7 +18,7 @@ def cli(ctx):
 
 
 @cli.command()
-@click.option("--timeout", "-t", default=5.0, help="Scan timeout in seconds")
+@click.option("--timeout", "-t", default=10.0, help="Scan timeout in seconds")
 @click.pass_context
 def scan(ctx, timeout):
     """Scan for AirPlay and Google Cast devices on the network."""
