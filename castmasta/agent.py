@@ -39,7 +39,9 @@ MAX_SCAN_TIMEOUT = 30
 MIN_DISPLAY_DURATION = 1
 MAX_DISPLAY_DURATION = 86400
 
-PIPER_VOICE_DATA_DIR = Path.home() / ".local/share/piper-voices"
+_USER_VOICE_DIR = Path.home() / ".local/share/piper-voices"
+_SYSTEM_VOICE_DIR = Path("/usr/share/castmasta/voices")
+PIPER_VOICE_DATA_DIR = _USER_VOICE_DIR if _USER_VOICE_DIR.exists() else _SYSTEM_VOICE_DIR
 DEFAULT_VOICE = "en_US-lessac-medium"
 MAX_ANNOUNCE_TEXT_LEN = 4000
 _VOICE_RE = re.compile(r"^[a-zA-Z0-9_\-]+$")

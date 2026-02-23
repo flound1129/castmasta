@@ -2,6 +2,8 @@
 import logging
 from typing import Optional
 
+import click
+
 from fastmcp import FastMCP
 
 from castmasta import CastAgent
@@ -429,8 +431,16 @@ async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay") -
         return f"Failed to complete pairing with {name}"
 
 
-def main():
-    mcp.run(transport="stdio")
+@click.command()
+@click.option("--host", default="127.0.0.1", help="Host to listen on")
+@click.option("--port", default=16384, help="Port to listen on")
+@click.option("--stdio", "transport", flag_value="stdio", default=True, help="Use stdio transport (default)")
+@click.option("--http", "transport", flag_value="http", help="Use HTTP transport")
+def main(host, port, transport):
+    if transport == "http":
+        mcp.run(transport="http", host=host, port=port)
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
