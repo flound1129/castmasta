@@ -1,0 +1,11 @@
+Package: castmasta
+Version: 0.2.0-1
+Architecture: arm64
+Maintainer: Adam <adam@localhost>
+Installed-Size: 382555
+Depends: libc6 (>= 2.38), libgcc-s1 (>= 4.5), libstdc++6 (>= 10.2), zlib1g (>= 1:1.1.4), python3, libasound2
+Section: net
+Priority: optional
+Description: LLM agent for controlling AirPlay and Google Cast devices
+ CastMasta controls AirPlay and Google Cast devices, providing text-to-speech
+ announcement support via piper TTS. Exposes an MCP server for LLM integration.
