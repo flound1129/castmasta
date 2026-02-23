@@ -16,3 +16,11 @@ credentials.json
 .venv/
 venv/
 dist/*.deb
+debian/.debhelper/
+debian/castmasta/
+debian/castmasta-dbgsym/
+debian/voices/
+debian/files
+debian/debhelper-build-stamp
+debian/*.debhelper
+debian/*.substvars
