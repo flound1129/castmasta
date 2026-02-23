@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+export DH_VIRTUALENV_INSTALL_ROOT = /usr/lib
+
+%:
+	dh $@ --with python-virtualenv
+
+override_dh_virtualenv:
+	dh_virtualenv \
+		--install-suffix castmasta \
+		--python /usr/bin/python3 \
+		--builtin-venv \
+		--preinstall setuptools \
+		--preinstall wheel
+
+override_dh_install:
+	dh_install
+	install -d debian/castmasta/usr/share/castmasta/voices
+	install -m 644 debian/voices/en_US-lessac-medium.onnx \
+		debian/castmasta/usr/share/castmasta/voices/
+	install -m 644 debian/voices/en_US-lessac-medium.onnx.json \
+		debian/castmasta/usr/share/castmasta/voices/

@@ -1,0 +1,19 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if ! getent passwd castmasta > /dev/null 2>&1; then
+            adduser --system --group \
+                --home /var/lib/castmasta \
+                --shell /usr/sbin/nologin \
+                --no-create-home \
+                castmasta
+        fi
+        mkdir -p /var/lib/castmasta
+        chown castmasta:castmasta /var/lib/castmasta
+        chmod 700 /var/lib/castmasta
+        ;;
+esac
+
+#DEBHELPER#
