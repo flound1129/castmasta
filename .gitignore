@@ -1,4 +1,5 @@
 .aider*
+opencode.json
 __pycache__/
 *.pyc
 *.egg-info/

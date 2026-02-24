@@ -85,8 +85,8 @@ device's IP address directly to bypass the scan:
 
 ```bash
 # MCP call with host parameter
-pair_device(name="Home Theater", host="10.0.0.181")
-pair_device_with_pin(name="Home Theater", pin="1234", host="10.0.0.181")
+pair_device(name="Home Theater", host="<device-ip>")
+pair_device_with_pin(name="Home Theater", pin="1234", host="<device-ip>")
 ```
 
 The `host` parameter triggers a unicast scan (`pyatv.scan(hosts=[ip])`) to the
@@ -106,12 +106,12 @@ specific device instead of a broadcast mDNS scan.
 # Step 1: initiate pairing (Apple TV shows PIN on screen)
 pair_device(name="Home Theater")
 # or with explicit host if mDNS isn't working:
-pair_device(name="Home Theater", host="10.0.0.181")
+pair_device(name="Home Theater", host="<device-ip>")
 
 # Step 2: complete with PIN shown on device
 pair_device_with_pin(name="Home Theater", pin="1234")
 # or:
-pair_device_with_pin(name="Home Theater", pin="1234", host="10.0.0.181")
+pair_device_with_pin(name="Home Theater", pin="1234", host="<device-ip>")
 ```
 
 ## Python API
@@ -123,7 +123,7 @@ from pyatv.const import Protocol
 agent = CastAgent()
 
 # Scan or provide address directly
-devices = await agent.scan(hosts=["10.0.0.181"])
+devices = await agent.scan(hosts=["<device-ip>"])
 dev = devices[0]
 
 # Step 1
