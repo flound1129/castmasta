@@ -4,6 +4,26 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VOICES_SRC="$HOME/.local/share/piper-voices"
 VOICE="en_US-lessac-medium"
+TS="$(date +%s)"
+VERSION="0.${TS}"
+DEB_DATE="$(date -R)"
+BUILDER_IMAGE="castmasta-builder:latest"
+
+echo "==> Version: ${VERSION}"
+
+# Update pyproject.toml version
+sed -i "s/^version = .*/version = \"${VERSION}\"/" "$REPO_ROOT/pyproject.toml"
+
+# Prepend changelog entry
+CHANGELOG_ENTRY="castmasta (${VERSION}-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  ${DEB_DATE}
+
+"
+printf '%s' "$CHANGELOG_ENTRY" | cat - "$REPO_ROOT/debian/changelog" > /tmp/changelog.new
+mv /tmp/changelog.new "$REPO_ROOT/debian/changelog"
 
 echo "==> Preparing voice models..."
 mkdir -p "$REPO_ROOT/debian/voices"
@@ -12,27 +32,20 @@ cp "$VOICES_SRC/$VOICE.onnx.json" "$REPO_ROOT/debian/voices/"
 
 mkdir -p "$REPO_ROOT/dist"
 
-echo "==> Building arm64 deb in Docker..."
+# Build base image if not present
+if ! docker image inspect "$BUILDER_IMAGE" > /dev/null 2>&1; then
+    echo "==> Builder image not found, building it first..."
+    "$REPO_ROOT/scripts/build-base-image.sh"
+fi
+
+echo "==> Building arm64 deb in Docker (using cached builder image)..."
 docker run --rm \
     --network=host \
     --platform linux/arm64 \
     -v "$REPO_ROOT:/build" \
-    arm64v8/debian:trixie \
+    "$BUILDER_IMAGE" \
     bash -c "
         set -e
-        apt-get update -qq
-        apt-get install -y -qq --no-install-recommends \
-            debhelper \
-            dh-virtualenv \
-            python3-dev \
-            python3-pip \
-            python3-venv \
-            libssl-dev \
-            libffi-dev \
-            libasound2-dev \
-            build-essential \
-            patchelf \
-            git
         cd /build
         dpkg-buildpackage -us -uc -b
         cp /build/../castmasta_*.deb /build/dist/

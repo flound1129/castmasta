@@ -118,14 +118,13 @@ class AirPlayBackend(DeviceBackend):
 
     async def send_key(self, key: str) -> None:
         """Send a remote control key press (AirPlay-specific)."""
-        from pyatv.const import Key
-
+        rc = self._atv.remote_control
         key_map = {
-            "up": Key.up, "down": Key.down, "left": Key.left, "right": Key.right,
-            "select": Key.select, "menu": Key.menu, "home": Key.home,
-            "play": Key.play, "pause": Key.pause, "play_pause": Key.play_pause,
-            "next": Key.next, "previous": Key.previous,
+            "up": rc.up, "down": rc.down, "left": rc.left, "right": rc.right,
+            "select": rc.select, "menu": rc.menu, "home": rc.home,
+            "play": rc.play, "pause": rc.pause, "play_pause": rc.play_pause,
+            "next": rc.next, "previous": rc.previous,
         }
         if key not in key_map:
             raise ValueError(f"Unknown key: {key}")
-        await self._atv.remote_control.keypress(key_map[key])
+        await key_map[key]()

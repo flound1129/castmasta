@@ -70,18 +70,25 @@ class CastAgent:
         self._pairing_handlers: dict[str, object] = {}
         self._last_scan: list[dict] = []
 
-    async def scan(self, timeout: int = 10) -> list[dict]:
+    async def scan(self, timeout: int = 10, hosts: Optional[list] = None) -> list[dict]:
         timeout = max(1, min(timeout, MAX_SCAN_TIMEOUT))
+        async def _empty():
+            return []
+
         airplay_devices, cast_devices = await asyncio.gather(
-            self._scan_airplay(timeout),
-            self._scan_cast(timeout),
+            self._scan_airplay(timeout, hosts=hosts),
+            self._scan_cast(timeout) if not hosts else _empty(),
         )
         self._last_scan = airplay_devices + cast_devices
         return self._last_scan
 
-    async def _scan_airplay(self, timeout: int) -> list[dict]:
+    async def _scan_airplay(self, timeout: int, hosts: Optional[list] = None) -> list[dict]:
         try:
-            atvs = await pyatv.scan(loop=asyncio.get_event_loop(), timeout=timeout)
+            kwargs = {}
+            if hosts:
+                import ipaddress
+                kwargs["hosts"] = [ipaddress.IPv4Address(h) for h in hosts]
+            atvs = await pyatv.scan(loop=asyncio.get_event_loop(), timeout=timeout, **kwargs)
             results = []
             for atv in atvs:
                 services = atv.services if hasattr(atv, "services") else []
@@ -147,14 +154,16 @@ class CastAgent:
 
     async def connect_by_name(
         self, name: str, protocol: Protocol = Protocol.AirPlay,
-    ) -> DeviceBackend:
-        devices = await self.scan()
+        hosts: Optional[list] = None,
+    ) -> tuple[str, DeviceBackend]:
+        devices = await self.scan(hosts=hosts)
         for dev in devices:
             if dev["name"] == name:
-                return await self.connect(
+                backend = await self.connect(
                     dev["identifier"], dev["address"], dev["name"],
                     protocol=protocol, device_type=dev["device_type"],
                 )
+                return dev["identifier"], backend
         raise ValueError(f"Device '{name}' not found")
 
     async def disconnect(self, identifier: str):
@@ -185,14 +194,14 @@ class CastAgent:
         device_config = conf.AppleTV(
             address=ipaddress.IPv4Address(address), name=name,
         )
+        # AirPlayService sets the device identifier (required by pyatv storage layer)
+        device_config.add_service(conf.AirPlayService(identifier, port=7000))
         if protocol == Protocol.AirPlay:
-            service = conf.AirPlayService(identifier, port=7000)
+            pass  # already added above
         elif protocol == Protocol.Companion:
-            service = conf.CompanionService(port=49153)
+            device_config.add_service(conf.CompanionService(port=49153))
         else:
             raise ValueError(f"Unsupported protocol for pairing: {protocol}")
-
-        device_config.add_service(service)
         handler = await pyatv_pair(device_config, protocol, loop=asyncio.get_event_loop())
         await handler.begin()
 

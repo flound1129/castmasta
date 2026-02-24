@@ -44,19 +44,21 @@ async def scan_devices(timeout: int = 5) -> str:
 
 
 @mcp.tool()
-async def connect_device(name: str, protocol: str = "airplay") -> str:
+async def connect_device(name: str, protocol: str = "airplay", host: Optional[str] = None) -> str:
     """Connect to a device by name (auto-detects AirPlay or Google Cast).
 
     Args:
         name: The name of the device to connect to
         protocol: The protocol to use - 'airplay' or 'companion' (default: airplay)
+        host: Optional IP address of the device (bypasses mDNS scan)
     """
     proto = _parse_protocol(protocol)
     if proto is None:
         return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        backend = await agent.connect_by_name(name, proto)
-        return f"Connected to {name} [{backend.device_type}]"
+        hosts = [host] if host else None
+        identifier, backend = await agent.connect_by_name(name, proto, hosts=hosts)
+        return f"Connected to {name} [{backend.device_type}] identifier={identifier}"
     except Exception:
         logger.exception("Failed to connect to device")
         return f"Failed to connect to {name}: device unreachable or pairing required"
@@ -379,18 +381,20 @@ async def send_key(identifier: str, key: str) -> str:
 
 
 @mcp.tool()
-async def pair_device(name: str, protocol: str = "airplay") -> str:
+async def pair_device(name: str, protocol: str = "airplay", host: Optional[str] = None) -> str:
     """Start pairing with a device (AirPlay only).
 
     Args:
         name: The name of the device to pair with
         protocol: The protocol - 'airplay' or 'companion'
+        host: Optional IP address of the device (bypasses mDNS scan)
     """
     proto = _parse_protocol(protocol)
     if proto is None:
         return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        devices = await agent.scan()
+        hosts = [host] if host else None
+        devices = await agent.scan(hosts=hosts)
         for dev in devices:
             if dev["name"] == name:
                 result = await agent.pair(dev["identifier"], dev["address"], dev["name"], proto)
@@ -404,19 +408,21 @@ async def pair_device(name: str, protocol: str = "airplay") -> str:
 
 
 @mcp.tool()
-async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay") -> str:
+async def pair_device_with_pin(name: str, pin: str, protocol: str = "airplay", host: Optional[str] = None) -> str:
     """Complete pairing with a PIN code (AirPlay only).
 
     Args:
         name: The name of the device to pair with
         pin: The PIN code (4 digits)
         protocol: The protocol - 'airplay' or 'companion'
+        host: Optional IP address of the device (bypasses mDNS scan)
     """
     proto = _parse_protocol(protocol)
     if proto is None:
         return f"Invalid protocol '{protocol}'. Must be 'airplay' or 'companion'."
     try:
-        devices = await agent.scan()
+        hosts = [host] if host else None
+        devices = await agent.scan(hosts=hosts)
         for dev in devices:
             if dev["name"] == name:
                 success = await agent.pair_with_pin(dev["identifier"], dev["address"], dev["name"], pin, proto)

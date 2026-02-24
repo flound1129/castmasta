@@ -1,3 +1,33 @@
+castmasta (0.1771955596-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  Tue, 24 Feb 2026 09:53:16 -0800
+
+castmasta (0.1771913016-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  Mon, 23 Feb 2026 22:03:36 -0800
+
+castmasta (0.1771900857-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  Mon, 23 Feb 2026 18:40:57 -0800
+
+castmasta (0.1771889411-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  Mon, 23 Feb 2026 15:30:11 -0800
+
+castmasta (0.1771888713-1) trixie; urgency=low
+
+  * Automated build.
+
+ -- Adam <adam@localhost>  Mon, 23 Feb 2026 15:18:33 -0800
+
 castmasta (0.2.0-1) trixie; urgency=low
 
   * Initial release.

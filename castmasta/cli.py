@@ -44,8 +44,8 @@ def connect(ctx, name, protocol):
     """Connect to a device by name (auto-detects AirPlay or Google Cast)."""
     agent: CastAgent = ctx.obj["agent"]
     proto = Protocol.AirPlay if protocol == "airplay" else Protocol.Companion
-    backend = asyncio.run(agent.connect_by_name(name, proto))
-    click.echo(f"Connected to {name} [{backend.device_type}]")
+    identifier, backend = asyncio.run(agent.connect_by_name(name, proto))
+    click.echo(f"Connected to {name} [{backend.device_type}] ({identifier})")
 
 
 @cli.command()
