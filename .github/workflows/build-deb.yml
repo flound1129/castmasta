@@ -1,0 +1,82 @@
+name: Build arm64 deb
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  VOICE_MODEL: en_US-lessac-medium
+  VOICE_BASE_URL: https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium
+  ONNX_SHA256: 5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f
+  ONNX_JSON_SHA256: efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU for arm64
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download and verify voice models
+        run: |
+          mkdir -p debian/voices
+          curl -fSL -o debian/voices/${VOICE_MODEL}.onnx \
+            "${VOICE_BASE_URL}/${VOICE_MODEL}.onnx"
+          curl -fSL -o debian/voices/${VOICE_MODEL}.onnx.json \
+            "${VOICE_BASE_URL}/${VOICE_MODEL}.onnx.json"
+
+          echo "${ONNX_SHA256}  debian/voices/${VOICE_MODEL}.onnx" | sha256sum -c -
+          echo "${ONNX_JSON_SHA256}  debian/voices/${VOICE_MODEL}.onnx.json" | sha256sum -c -
+
+      - name: Generate version
+        id: version
+        run: |
+          VERSION="0.$(date +%s)"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          sed -i "s/^version = .*/version = \"${VERSION}\"/" pyproject.toml
+
+          DEB_DATE="$(date -R)"
+          ENTRY="castmasta (${VERSION}-1) trixie; urgency=low
+
+            * Automated build.
+
+           -- Adam <adam@localhost>  ${DEB_DATE}
+
+          "
+          printf '%s' "$ENTRY" | cat - debian/changelog > /tmp/changelog.new
+          mv /tmp/changelog.new debian/changelog
+
+      - name: Build builder image
+        run: |
+          docker build --platform linux/arm64 --network=host \
+            -t castmasta-builder:latest -f Dockerfile.build .
+
+      - name: Build deb package
+        run: |
+          mkdir -p dist
+          docker run --rm \
+            --network=host \
+            --platform linux/arm64 \
+            -v "$PWD:/build" \
+            castmasta-builder:latest \
+            bash -c "
+              set -e
+              cd /build
+              dpkg-buildpackage -us -uc -b
+              cp /build/../castmasta_*.deb /build/dist/
+            "
+
+      - name: Upload deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: castmasta-${{ steps.version.outputs.version }}-arm64
+          path: dist/castmasta_*.deb
+          retention-days: 30

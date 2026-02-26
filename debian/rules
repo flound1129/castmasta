@@ -20,3 +20,6 @@ override_dh_install:
 		debian/castmasta/usr/share/castmasta/voices/
 	install -m 644 debian/voices/en_US-lessac-medium.onnx.json \
 		debian/castmasta/usr/share/castmasta/voices/
+	install -d debian/castmasta/usr/lib/castmasta/bin
+	install -m 755 scripts/register-bigbrain.sh \
+		debian/castmasta/usr/lib/castmasta/bin/register-bigbrain

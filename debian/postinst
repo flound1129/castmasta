@@ -13,6 +13,7 @@ case "$1" in
         mkdir -p /var/lib/castmasta
         chown castmasta:castmasta /var/lib/castmasta
         chmod 700 /var/lib/castmasta
+        install -d -m 750 -o root -g castmasta /etc/castmasta
         ;;
 esac
 
