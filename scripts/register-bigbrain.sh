@@ -66,7 +66,7 @@ timestamp = str(int(time.time()))
 body_dict = {"service": service_name, "port": requested_port}
 body = json.dumps(body_dict)
 signed_data = f"POST\n/enroll\n{timestamp}\n{body}".encode()
-signature = hmac.new(fleet_token.encode(), signed_data, hashlib.sha256).hexdigest()
+signature = base64.b64encode(hmac.new(fleet_token.encode(), signed_data, hashlib.sha256).digest()).decode()
 
 req = urllib.request.Request(
     f"{bigbrain_url}/enroll",
