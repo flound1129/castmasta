@@ -23,3 +23,6 @@ override_dh_install:
 	install -d debian/castmasta/usr/lib/castmasta/bin
 	install -m 755 scripts/register-bigbrain.sh \
 		debian/castmasta/usr/lib/castmasta/bin/register-bigbrain
+
+override_dh_strip_nondeterminism:
+	@echo "Skipping dh_strip_nondeterminism (too slow under QEMU)"
