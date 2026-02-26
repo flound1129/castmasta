@@ -74,9 +74,16 @@ jobs:
               cp /build/../castmasta_*.deb /build/dist/
             "
 
+      - name: Rename deb to include codename
+        run: |
+          for f in dist/castmasta_*_arm64.deb; do
+            newname=$(echo "$f" | sed 's/_arm64\.deb$/_trixie_arm64.deb/')
+            mv "$f" "$newname"
+          done
+
       - name: Upload deb artifact
         uses: actions/upload-artifact@v4
         with:
-          name: castmasta-${{ steps.version.outputs.version }}-arm64
-          path: dist/castmasta_*.deb
+          name: castmasta-${{ steps.version.outputs.version }}-trixie-arm64
+          path: dist/castmasta_*_trixie_arm64.deb
           retention-days: 30

@@ -51,5 +51,11 @@ docker run --rm \
         cp /build/../castmasta_*.deb /build/dist/
     "
 
+# Rename to include codename: <pkg>_<ver>_<codename>_<arch>.deb
+for f in "$REPO_ROOT/dist/"castmasta_*_arm64.deb; do
+    newname=$(echo "$f" | sed 's/_arm64\.deb$/_trixie_arm64.deb/')
+    [ "$f" != "$newname" ] && mv "$f" "$newname"
+done
+
 echo "==> Done! Package in dist/:"
-ls -lh "$REPO_ROOT/dist/"*.deb
+ls -lh "$REPO_ROOT/dist/"*_trixie_arm64.deb
