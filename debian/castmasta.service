@@ -14,6 +14,7 @@ StateDirectory=castmasta
 StateDirectoryMode=0700
 ProtectSystem=strict
 ProtectHome=true
+PrivateTmp=true
 ReadWritePaths=/var/lib/castmasta
 NoNewPrivileges=true
 

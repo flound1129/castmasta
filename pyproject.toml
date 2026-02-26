@@ -1,6 +1,6 @@
 [project]
 name = "castmasta"
-version = "0.1771955596"
+version = "0.1772067642"
 description = "LLM agent for controlling AirPlay and Google Cast devices"
 requires-python = ">=3.10"
 dependencies = [

@@ -27,5 +27,8 @@ override_dh_install:
 	install -m 640 debian/castmasta.env \
 		debian/castmasta/etc/castmasta/env
 
+override_dh_strip:
+	@echo "Skipping dh_strip (binaries from pip wheels are not strippable)"
+
 override_dh_strip_nondeterminism:
-	@echo "Skipping dh_strip_nondeterminism (too slow under QEMU)"
+	@echo "Skipping dh_strip_nondeterminism"
