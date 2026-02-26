@@ -30,5 +30,8 @@ override_dh_install:
 override_dh_strip:
 	@echo "Skipping dh_strip (binaries from pip wheels are not strippable)"
 
+override_dh_shlibdeps:
+	dh_shlibdeps --dpkg-shlibdeps-params=--ignore-missing-info
+
 override_dh_strip_nondeterminism:
 	@echo "Skipping dh_strip_nondeterminism"
